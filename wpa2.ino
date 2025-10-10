@@ -40,6 +40,7 @@ unsigned long lastModeSwitch = 0;
 enum DisplayMode {
   MODE_WEATHER,
   MODE_BUS,
+  MODE_TIME,
   MODE_COUNT
 };
 DisplayMode currentMode = MODE_WEATHER;
@@ -48,12 +49,10 @@ DisplayMode currentMode = MODE_WEATHER;
 String displayText = "";
 int16_t scrollX = 0;
 
-enum DisplayMode { MODE_WEATHER, MODE_TIME };
-DisplayMode currentMode = MODE_WEATHER;
-
 // --- FUNCTION DECLARATIONS ---
 void fetchWeather();
 void fetchBusTimes();
+void showTime();
 void updateDisplay();
 void scrollText();
 
@@ -70,16 +69,16 @@ void setup() {
     Serial.println("Connection failed!");
   }
 
-  // --- Initialize NTP ---
-  configTime(-5 * 3600, 0, "pool.ntp.org", "time.nist.gov"); // EST offset
+  // Initialize NTP (EST)
+  configTime(-5 * 3600, 0, "pool.ntp.org", "time.nist.gov");
 
-  // --- Initialize LED Matrix ---
+  // Initialize LED Matrix
   matrix.begin();
   matrix.setTextWrap(false);
   matrix.setBrightness(40);
   matrix.setTextColor(matrix.Color(0, 150, 255));
 
-  // Fetch initial data
+  // Initial data fetch
   fetchWeather();
   updateDisplay();
   scrollX = matrix.width();
@@ -90,12 +89,14 @@ void setup() {
 void loop() {
   unsigned long now = millis();
 
+  // Rotate between modes
   if (now - lastModeSwitch >= modeInterval) {
     currentMode = (DisplayMode)((currentMode + 1) % MODE_COUNT);
     updateDisplay();
     lastModeSwitch = now;
   }
 
+  // Refresh API data
   if (now - lastDataFetch >= dataInterval) {
     if (currentMode == MODE_WEATHER) fetchWeather();
     else if (currentMode == MODE_BUS) fetchBusTimes();
@@ -106,6 +107,7 @@ void loop() {
   delay(75);
 }
 
+// --- Mode Switch Logic ---
 void updateDisplay() {
   Serial.println();
   switch (currentMode) {
@@ -117,11 +119,16 @@ void updateDisplay() {
       Serial.println("Mode: Bus");
       fetchBusTimes();
       break;
+    case MODE_TIME:
+      Serial.println("Mode: Time");
+      showTime();
+      break;
   }
   Serial.println("[Display] " + displayText);
   scrollX = matrix.width();
 }
 
+// --- Weather ---
 void fetchWeather() {
   HTTPClient http;
   http.begin(orlandoWeatherPath);
@@ -142,6 +149,7 @@ void fetchWeather() {
   http.end();
 }
 
+// --- Bus ---
 void fetchBusTimes() {
   HTTPClient http;
   http.begin(busURL);
@@ -205,25 +213,21 @@ void fetchBusTimes() {
   http.end();
 }
 
-void updateDisplayText() {
-  if (currentMode == MODE_WEATHER) {
-    displayText = "Orlando " + currentTempF + "F ";
-  } else {
-    struct tm timeinfo;
-    if (!getLocalTime(&timeinfo)) {
-      displayText = "No time data ";
-    } else {
-      char buf[16];
-      strftime(buf, sizeof(buf), "%I:%M %p", &timeinfo);
-      displayText = String(buf);
-    }
+// --- Time ---
+void showTime() {
+  struct tm timeinfo;
+  if (!getLocalTime(&timeinfo)) {
+    displayText = "No time data";
+    return;
   }
 
-  scrollX = matrix.width();  // always start from right edge
-  Serial.println("=== Mode: " + String(currentMode == MODE_WEATHER ? "Weather" : "Time") + " ===");
-  Serial.println("[Display] " + displayText);
+  char buf[16];
+  strftime(buf, sizeof(buf), "%I:%M %p", &timeinfo);
+  displayText = String(buf);
+  Serial.println("Time: " + displayText);
 }
 
+// --- Scroll ---
 void scrollText() {
   matrix.fillScreen(0);
   matrix.setCursor(scrollX, 0);
