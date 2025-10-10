@@ -4,6 +4,7 @@
 #include <Adafruit_GFX.h>
 #include <Adafruit_NeoMatrix.h>
 #include <Adafruit_NeoPixel.h>
+#include <time.h>
 #include "config.h"  // contains: const char* username; const char* password;
 
 // --- MATRIX SETUP ---
@@ -47,6 +48,9 @@ DisplayMode currentMode = MODE_WEATHER;
 String displayText = "";
 int16_t scrollX = 0;
 
+enum DisplayMode { MODE_WEATHER, MODE_TIME };
+DisplayMode currentMode = MODE_WEATHER;
+
 // --- FUNCTION DECLARATIONS ---
 void fetchWeather();
 void fetchBusTimes();
@@ -66,7 +70,10 @@ void setup() {
     Serial.println("Connection failed!");
   }
 
-  // Initialize LED matrix
+  // --- Initialize NTP ---
+  configTime(-5 * 3600, 0, "pool.ntp.org", "time.nist.gov"); // EST offset
+
+  // --- Initialize LED Matrix ---
   matrix.begin();
   matrix.setTextWrap(false);
   matrix.setBrightness(40);
@@ -196,6 +203,25 @@ void fetchBusTimes() {
   }
 
   http.end();
+}
+
+void updateDisplayText() {
+  if (currentMode == MODE_WEATHER) {
+    displayText = "Orlando " + currentTempF + "F ";
+  } else {
+    struct tm timeinfo;
+    if (!getLocalTime(&timeinfo)) {
+      displayText = "No time data ";
+    } else {
+      char buf[16];
+      strftime(buf, sizeof(buf), "%I:%M %p", &timeinfo);
+      displayText = String(buf);
+    }
+  }
+
+  scrollX = matrix.width();  // always start from right edge
+  Serial.println("=== Mode: " + String(currentMode == MODE_WEATHER ? "Weather" : "Time") + " ===");
+  Serial.println("[Display] " + displayText);
 }
 
 void scrollText() {
