@@ -1,25 +1,25 @@
-#include <WiFiEnterprise.h>
+#include <WiFi.h>           // use simple WiFi for Wokwi / non-enterprise
 #include <HTTPClient.h>
 #include <ArduinoJson.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_NeoMatrix.h>
 #include <Adafruit_NeoPixel.h>
-#include "config.h"  // your WPA2 username/password
+#include <time.h>
 
 // --- MATRIX SETUP ---
-#define PIN 23                // GPIO pin connected to WS2812B DIN
+#define PIN 23
 #define MATRIX_WIDTH 32
 #define MATRIX_HEIGHT 8
 
 Adafruit_NeoMatrix matrix = Adafruit_NeoMatrix(
-  32, 8, 23,
-  NEO_MATRIX_TOP + NEO_MATRIX_LEFT + NEO_MATRIX_COLUMNS + NEO_MATRIX_ZIGZAG,
+  MATRIX_WIDTH, MATRIX_HEIGHT, PIN,
+  NEO_MATRIX_BOTTOM + NEO_MATRIX_LEFT + NEO_MATRIX_ROWS + NEO_MATRIX_ZIGZAG,
   NEO_GRB + NEO_KHZ800
 );
 
-
 // --- WIFI ---
-const char* ssid = "UCF_WPA2";
+const char* ssid = "Wokwi-GUEST";
+const char* password = "";
 
 // --- WEATHER API ---
 String weatherURL = "http://api.weatherapi.com/v1";
@@ -30,57 +30,73 @@ String orlandoWeatherPath = weatherURL + "/current.json?" + weatherKey + "&" + w
 StaticJsonDocument<1024> doc;
 String currentTempF = "";
 
-const unsigned long interval = 60000;  // 1 minute
-unsigned long lastRequest = 0;         // updated after each run
+const unsigned long weatherInterval = 60000; // fetch weather every 60s
+const unsigned long modeInterval = 10000;    // switch display every 10s
+const unsigned long scrollSpeed = 75;
+
+unsigned long lastWeather = 0;
+unsigned long lastScroll = 0;
+unsigned long lastModeSwitch = 0;
+
 int16_t scrollX;
 String displayText;
 
+// --- MODES ---
+enum DisplayMode { MODE_WEATHER, MODE_TIME };
+DisplayMode currentMode = MODE_WEATHER;
+
 // --- FUNCTION DECLARATIONS ---
-void fetchAndDisplay();
+void fetchWeather();
+void updateDisplayText();
 void scrollText();
+void showTime();
 
 void setup() {
   Serial.begin(115200);
-
-  // --- Connect to WPA2 Enterprise ---
-  Serial.println("Connecting to WPA2-Enterprise WiFi...");
-  if (WiFiEnterprise.begin(ssid, username, password, true)) {
-    Serial.println("Connected!");
-    Serial.print("IP: ");
-    Serial.println(WiFiEnterprise.localIP());
-  } else {
-    Serial.println("Connection failed!");
+  Serial.println("Connecting to WiFi...");
+  WiFi.begin(ssid, password);
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(100);
+    Serial.print(".");
   }
+  Serial.println(" Connected!");
 
-  // --- Initialize LED Matrix ---
+  // Setup NTP
+  configTime(-5 * 3600, 0, "pool.ntp.org"); // EST offset
+
   matrix.begin();
   matrix.setTextWrap(false);
   matrix.setBrightness(40);
   matrix.setTextColor(matrix.Color(0, 150, 255));
 
-  // --- Run immediately once ---
-  fetchAndDisplay();
-  lastRequest = millis();  // start timing cadence
+  fetchWeather();
+  updateDisplayText();
+  lastWeather = millis();
+  lastModeSwitch = millis();
 }
 
 void loop() {
-  // --- Interval check with rollover-safe steady cadence ---
   unsigned long now = millis();
-  if ((unsigned long)(now - lastRequest) >= interval) {
-    fetchAndDisplay();
-    lastRequest += interval;  // steady interval, not drifted by runtime
-    // optional resync if far behind
-    if ((unsigned long)(millis() - lastRequest) >= interval)
-      lastRequest = millis();
+
+  if (now - lastWeather >= weatherInterval) {
+    fetchWeather();
+    updateDisplayText();
+    lastWeather = now;
   }
 
-  // --- Scroll continuously ---
-  scrollText();
-  delay(75);  // adjust scroll speed
+  if (now - lastModeSwitch >= modeInterval) {
+    currentMode = (currentMode == MODE_WEATHER) ? MODE_TIME : MODE_WEATHER;
+    updateDisplayText();
+    lastModeSwitch = now;
+  }
+
+  if (now - lastScroll >= scrollSpeed) {
+    scrollText();
+    lastScroll = now;
+  }
 }
 
-// --- Fetch weather & update display text ---
-void fetchAndDisplay() {
+void fetchWeather() {
   HTTPClient http;
   http.begin(orlandoWeatherPath);
   int httpCode = http.GET();
@@ -89,19 +105,33 @@ void fetchAndDisplay() {
     String payload = http.getString();
     deserializeJson(doc, payload);
     currentTempF = doc["current"]["temp_f"].as<String>();
-    displayText = "Orlando " + currentTempF + "F ";
-    Serial.println(displayText);
+    Serial.println("Weather updated: " + currentTempF + "F");
   } else {
-    displayText = "HTTP " + String(httpCode) + " ";
-    Serial.print("HTTP error: ");
-    Serial.println(httpCode);
+    Serial.println("HTTP error: " + String(httpCode));
   }
 
   http.end();
-  scrollX = matrix.width();  // reset scroll position
 }
 
-// --- Scroll the current text leftward ---
+void updateDisplayText() {
+  if (currentMode == MODE_WEATHER) {
+    displayText = "Orlando " + currentTempF + "F ";
+  } else {
+    time_t now;
+    struct tm timeinfo;
+    if (!getLocalTime(&timeinfo)) {
+      displayText = "No time data ";
+      return;
+    }
+    char buf[16];
+    strftime(buf, sizeof(buf), "%I:%M %p", &timeinfo);
+    displayText = String(buf);
+  }
+  scrollX = matrix.width();
+  Serial.println("=== Mode: " + String(currentMode == MODE_WEATHER ? "Weather" : "Time") + " ===");
+  Serial.println("[Display] " + displayText);
+}
+
 void scrollText() {
   matrix.fillScreen(0);
   matrix.setCursor(scrollX, 0);
@@ -110,6 +140,6 @@ void scrollText() {
 
   scrollX--;
   if (scrollX < -((int)displayText.length() * 6)) {
-    scrollX = matrix.width();  // reset scroll
+    scrollX = matrix.width();
   }
 }
