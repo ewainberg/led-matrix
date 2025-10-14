@@ -29,6 +29,7 @@ enum DisplayMode {
   MODE_WEATHER,
   MODE_BUS,
   MODE_TIME,
+  MODE_EXCUSE,
   MODE_COUNT
 };
 DisplayMode currentMode = MODE_WEATHER;
@@ -40,11 +41,13 @@ int16_t scrollX = 0;
 uint16_t weatherColor = matrix.Color(0, 150, 255);   // cool blue
 uint16_t timeColor    = matrix.Color(0, 255, 100);   // green
 uint16_t busColor     = matrix.Color(255, 180, 0);   // warm orange
+uint16_t excuseColor  = matrix.Color(255, 100, 255); // purple
 
 // --- FUNCTION DECLARATIONS ---
 void fetchWeather();
 void fetchBusTimes();
 void showTime();
+void fetchExcuse();
 void updateDisplay();
 void scrollText();
 
@@ -53,6 +56,7 @@ uint16_t getModeColor(DisplayMode mode) {
     case MODE_WEATHER: return weatherColor;
     case MODE_BUS:     return busColor;
     case MODE_TIME:    return timeColor;
+    case MODE_EXCUSE:  return excuseColor;
     default:           return matrix.Color(255, 255, 255);
   }
 }
@@ -101,6 +105,7 @@ void loop() {
   if (now - lastDataFetch >= dataInterval) {
     if (currentMode == MODE_WEATHER) fetchWeather();
     else if (currentMode == MODE_BUS) fetchBusTimes();
+    else if (currentMode == MODE_EXCUSE) fetchExcuse();
     lastDataFetch = now;
   }
 
@@ -124,7 +129,12 @@ void updateDisplay() {
       Serial.println("Mode: Time");
       showTime();
       break;
+    case MODE_EXCUSE:
+      Serial.println("Mode: Excuse");
+      fetchExcuse();
+      break;
   }
+
   matrix.setTextColor(getModeColor(currentMode)); // Set color based on mode
   Serial.println("[Display] " + displayText);
   scrollX = matrix.width();
@@ -216,6 +226,33 @@ void fetchBusTimes() {
     }
   } else {
     displayText = "Bus HTTP " + String(httpCode);
+    Serial.println(displayText);
+  }
+
+  http.end();
+}
+
+// --- Excuse ---
+void fetchExcuse() {
+  HTTPClient http;
+  http.begin(excusesURL);
+  int httpCode = http.GET();
+
+  if (httpCode > 0) {
+    String payload = http.getString();
+    StaticJsonDocument<512> doc;
+    DeserializationError error = deserializeJson(doc, payload);
+
+    if (!error && doc.containsKey("text")) {
+      String excuse = doc["text"].as<String>();
+      displayText = "Some dev said... " + excuse;
+      Serial.println(displayText);
+    } else {
+      displayText = "Excuse parse error";
+      Serial.println("Excuse JSON error");
+    }
+  } else {
+    displayText = "Excuse HTTP " + String(httpCode);
     Serial.println(displayText);
   }
 
