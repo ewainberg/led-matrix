@@ -1,7 +1,19 @@
 #ifndef CONFIG_H
 #define CONFIG_H
 
+// --- WIFI ---
+const char* ssid = "your_ssid";
 const char* username = "yourNID@ucf.edu";
 const char* password = "yourPassword";
+
+// --- WEATHER API ---
+const String weatherKey = "key=yourkey";
+
+const String weatherURL = "http://api.weatherapi.com/v1";
+const String weatherLocation = "q=Orlando";
+const String weatherPath = weatherURL + "/current.json?" + weatherKey + "&" + weatherLocation;
+
+// --- SHUTTLES API ---
+const String busURL = "https://ucf.transloc.com/Services/JSONPRelay.svc/GetStopArrivalTimes?apiKey=&stopIds=60&version=2";
 
 #endif

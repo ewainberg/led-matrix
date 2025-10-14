@@ -5,7 +5,7 @@
 #include <Adafruit_NeoMatrix.h>
 #include <Adafruit_NeoPixel.h>
 #include <time.h>
-#include "config.h"  // contains: const char* username; const char* password;
+#include "config.h"
 
 // --- MATRIX SETUP ---
 #define PIN 23
@@ -18,21 +18,9 @@ Adafruit_NeoMatrix matrix = Adafruit_NeoMatrix(
   NEO_GRB + NEO_KHZ800
 );
 
-// --- WIFI ---
-const char* ssid = "UCF_WPA2";
-
-// --- WEATHER API ---
-const String weatherURL = "http://api.weatherapi.com/v1";
-const String weatherKey = "key=056112fc6a604f4aa5d190625250910";
-const String weatherLocation = "q=Orlando";
-const String orlandoWeatherPath = weatherURL + "/current.json?" + weatherKey + "&" + weatherLocation;
-
-// --- BUS API ---
-const String busURL = "https://ucf.transloc.com/Services/JSONPRelay.svc/GetStopArrivalTimes?apiKey=&stopIds=60&version=2";
-
 // --- TIMING ---
 const unsigned long dataInterval = 60000;
-const unsigned long modeInterval = 10000;
+const unsigned long modeInterval = 25000;
 unsigned long lastDataFetch = 0;
 unsigned long lastModeSwitch = 0;
 
@@ -45,9 +33,13 @@ enum DisplayMode {
 };
 DisplayMode currentMode = MODE_WEATHER;
 
-// --- VARIABLES ---
 String displayText = "";
 int16_t scrollX = 0;
+
+// --- COLORS ---
+uint16_t weatherColor = matrix.Color(0, 150, 255);   // cool blue
+uint16_t timeColor    = matrix.Color(0, 255, 100);   // green
+uint16_t busColor     = matrix.Color(255, 180, 0);   // warm orange
 
 // --- FUNCTION DECLARATIONS ---
 void fetchWeather();
@@ -55,6 +47,15 @@ void fetchBusTimes();
 void showTime();
 void updateDisplay();
 void scrollText();
+
+uint16_t getModeColor(DisplayMode mode) {
+  switch (mode) {
+    case MODE_WEATHER: return weatherColor;
+    case MODE_BUS:     return busColor;
+    case MODE_TIME:    return timeColor;
+    default:           return matrix.Color(255, 255, 255);
+  }
+}
 
 void setup() {
   Serial.begin(115200);
@@ -70,12 +71,12 @@ void setup() {
   }
 
   // Initialize NTP (EST)
-  configTime(-5 * 3600, 0, "pool.ntp.org", "time.nist.gov");
+  configTime(-5 * 3600, 3600, "pool.ntp.org", "time.nist.gov");
 
   // Initialize LED Matrix
   matrix.begin();
   matrix.setTextWrap(false);
-  matrix.setBrightness(40);
+  matrix.setBrightness(20);
   matrix.setTextColor(matrix.Color(0, 150, 255));
 
   // Initial data fetch
@@ -124,6 +125,7 @@ void updateDisplay() {
       showTime();
       break;
   }
+  matrix.setTextColor(getModeColor(currentMode)); // Set color based on mode
   Serial.println("[Display] " + displayText);
   scrollX = matrix.width();
 }
@@ -131,16 +133,23 @@ void updateDisplay() {
 // --- Weather ---
 void fetchWeather() {
   HTTPClient http;
-  http.begin(orlandoWeatherPath);
+  http.begin(weatherPath);
   int httpCode = http.GET();
 
   if (httpCode > 0) {
     String payload = http.getString();
     StaticJsonDocument<1024> doc;
-    deserializeJson(doc, payload);
-    String tempF = doc["current"]["temp_f"].as<String>();
-    displayText = "Orlando " + tempF + "F";
-    Serial.println("Weather: " + displayText);
+    DeserializationError error = deserializeJson(doc, payload);
+
+    if (!error) {
+      String tempF = doc["current"]["temp_f"].as<String>();
+      String condition = doc["current"]["condition"]["text"].as<String>();
+      displayText = condition + ", " + tempF + "F";
+      Serial.println("Weather: " + displayText);
+    } else {
+      displayText = "Weather parse error";
+      Serial.println("Weather JSON error");
+    }
   } else {
     displayText = "Weather HTTP " + String(httpCode);
     Serial.println(displayText);
@@ -177,7 +186,7 @@ void fetchBusTimes() {
       if (times.isNull()) times = busDoc[0]["Times"];
 
       if (!times.isNull()) {
-        String msg = "Bus ";
+        String msg = "Next Shuttles In: ";
         int count = 0;
         for (JsonObject t : times) {
           if (!t.containsKey("Seconds") || t["Seconds"].isNull()) continue;
@@ -194,7 +203,7 @@ void fetchBusTimes() {
           Serial.println("No valid bus times found");
         } else {
           displayText = msg;
-          Serial.println("Bus times: " + displayText);
+          Serial.println("Shuttle times: " + displayText);
         }
       } else {
         displayText = "No times";
@@ -222,7 +231,7 @@ void showTime() {
   }
 
   char buf[16];
-  strftime(buf, sizeof(buf), "%I:%M %p", &timeinfo);
+  strftime(buf, sizeof(buf), "%I:%M%p", &timeinfo);
   displayText = String(buf);
   Serial.println("Time: " + displayText);
 }
