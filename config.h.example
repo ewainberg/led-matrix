@@ -16,4 +16,7 @@ const String weatherPath = weatherURL + "/current.json?" + weatherKey + "&" + we
 // --- SHUTTLES API ---
 const String busURL = "https://ucf.transloc.com/Services/JSONPRelay.svc/GetStopArrivalTimes?apiKey=&stopIds=60&version=2";
 
+// --- DEV EXCUSES ---
+const String excusesURL = "https://excuses.onrender.com/excuse";
+
 #endif
