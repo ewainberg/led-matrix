@@ -110,7 +110,7 @@ void loop() {
   }
 
   scrollText();
-  delay(75);
+  delay(50);
 }
 
 // --- Mode Switch Logic ---
@@ -196,7 +196,7 @@ void fetchBusTimes() {
       if (times.isNull()) times = busDoc[0]["Times"];
 
       if (!times.isNull()) {
-        String msg = "Next Shuttles In: ";
+        String msg = "Bus: ";
         int count = 0;
         for (JsonObject t : times) {
           if (!t.containsKey("Seconds") || t["Seconds"].isNull()) continue;
@@ -245,7 +245,7 @@ void fetchExcuse() {
 
     if (!error && doc.containsKey("text")) {
       String excuse = doc["text"].as<String>();
-      displayText = "Some dev said... " + excuse;
+      displayText = "Excuse: " + excuse;
       Serial.println(displayText);
     } else {
       displayText = "Excuse parse error";
