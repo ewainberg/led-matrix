@@ -9,7 +9,7 @@
 
 // --- MATRIX SETUP ---
 #define PIN 23
-#define MATRIX_WIDTH 32
+#define MATRIX_WIDTH 145
 #define MATRIX_HEIGHT 8
 
 Adafruit_NeoMatrix matrix = Adafruit_NeoMatrix(
@@ -20,9 +20,9 @@ Adafruit_NeoMatrix matrix = Adafruit_NeoMatrix(
 
 // --- TIMING ---
 const unsigned long dataInterval = 60000;
-const unsigned long modeInterval = 25000;
 unsigned long lastDataFetch = 0;
 unsigned long lastModeSwitch = 0;
+unsigned long currentModeDuration = 0; // dynamically calculated
 
 // --- MODES ---
 enum DisplayMode {
@@ -30,42 +30,71 @@ enum DisplayMode {
   MODE_BUS,
   MODE_TIME,
   MODE_EXCUSE,
+  MODE_MESSAGE,
   MODE_COUNT
 };
 DisplayMode currentMode = MODE_WEATHER;
 
+// --- DISPLAY STATE ---
 String displayText = "";
 int16_t scrollX = 0;
 
 // --- COLORS ---
-uint16_t weatherColor = matrix.Color(0, 150, 255);   // cool blue
-uint16_t timeColor    = matrix.Color(0, 255, 100);   // green
-uint16_t busColor     = matrix.Color(255, 180, 0);   // warm orange
-uint16_t excuseColor  = matrix.Color(255, 100, 255); // purple
+uint16_t weatherColor = matrix.Color(0, 150, 255);
+uint16_t timeColor    = matrix.Color(0, 255, 100);
+uint16_t busColor     = matrix.Color(255, 180, 0);
+uint16_t excuseColor  = matrix.Color(255, 100, 255);
+uint16_t messageColor = matrix.Color(255, 255, 0);
 
 // --- FUNCTION DECLARATIONS ---
 void fetchWeather();
 void fetchBusTimes();
 void showTime();
 void fetchExcuse();
+void fetchMessage();
+void nextMessage();
 void updateDisplay();
 void scrollText();
+uint16_t getModeColor(DisplayMode mode);
+unsigned long getScrollDuration(const String &text);
 
+// --- MODE COLOR SELECTION ---
 uint16_t getModeColor(DisplayMode mode) {
   switch (mode) {
     case MODE_WEATHER: return weatherColor;
     case MODE_BUS:     return busColor;
     case MODE_TIME:    return timeColor;
     case MODE_EXCUSE:  return excuseColor;
+    case MODE_MESSAGE: return messageColor;
     default:           return matrix.Color(255, 255, 255);
   }
 }
 
+// --- Scroll Duration (based on text width) ---
+unsigned long getScrollDuration(const String &text) {
+  int16_t x1, y1;
+  uint16_t w, h;
+  matrix.getTextBounds(text, 0, 0, &x1, &y1, &w, &h);
+
+  // total distance = text width + matrix width, plus a small buffer
+  int totalPixels = w + matrix.width() + 20;  // +8 px padding for timing margin
+
+  unsigned long perFrame = 50;  // matches delay(50)
+  unsigned long duration = (unsigned long)totalPixels * perFrame;
+
+  // show twice
+  duration *= 2;
+
+  // add small buffer (~½ second) for end smoothness
+  duration += 500;
+
+  return constrain(duration, 2000UL, 60000UL);
+}
+
 void setup() {
   Serial.begin(115200);
-
-  // Connect to WPA2-Enterprise Wi-Fi
   Serial.println("Connecting to WPA2-Enterprise WiFi...");
+
   if (WiFiEnterprise.begin(ssid, username, password, true)) {
     Serial.println("Connected!");
     Serial.print("IP: ");
@@ -74,41 +103,55 @@ void setup() {
     Serial.println("Connection failed!");
   }
 
-  // Initialize NTP (EST)
-  configTime(-5 * 3600, 3600, "pool.ntp.org", "time.nist.gov");
+  // Initialize NTP (Eastern Time)
+  configTzTime("EST5EDT,M3.2.0,M11.1.0", "pool.ntp.org", "time.nist.gov");
 
   // Initialize LED Matrix
   matrix.begin();
   matrix.setTextWrap(false);
   matrix.setBrightness(20);
-  matrix.setTextColor(matrix.Color(0, 150, 255));
+  matrix.setTextColor(weatherColor);
 
-  // Initial data fetch
+  // Initial data fetch and display
   fetchWeather();
   updateDisplay();
   scrollX = matrix.width();
   lastDataFetch = millis();
   lastModeSwitch = millis();
+  currentModeDuration = getScrollDuration(displayText);
 }
 
 void loop() {
   unsigned long now = millis();
 
-  // Rotate between modes
-  if (now - lastModeSwitch >= modeInterval) {
+  // --- Rotate between modes ---
+  if (now - lastModeSwitch >= currentModeDuration) {
+    if (currentMode == MODE_MESSAGE) {
+      Serial.println("Advancing message queue before leaving message mode...");
+      nextMessage();
+    }
+
     currentMode = (DisplayMode)((currentMode + 1) % MODE_COUNT);
     updateDisplay();
+    scrollX = matrix.width();
+
+    currentModeDuration = getScrollDuration(displayText);
     lastModeSwitch = now;
   }
 
-  // Refresh API data
+  // --- Refresh API data periodically ---
   if (now - lastDataFetch >= dataInterval) {
-    if (currentMode == MODE_WEATHER) fetchWeather();
-    else if (currentMode == MODE_BUS) fetchBusTimes();
-    else if (currentMode == MODE_EXCUSE) fetchExcuse();
+    switch (currentMode) {
+      case MODE_WEATHER: fetchWeather(); break;
+      case MODE_BUS:     fetchBusTimes(); break;
+      case MODE_EXCUSE:  fetchExcuse(); break;
+      case MODE_MESSAGE: fetchMessage(); break;
+      default: break;
+    }
     lastDataFetch = now;
   }
 
+  // --- Scroll text ---
   scrollText();
   delay(50);
 }
@@ -117,25 +160,14 @@ void loop() {
 void updateDisplay() {
   Serial.println();
   switch (currentMode) {
-    case MODE_WEATHER:
-      Serial.println("Mode: Weather");
-      fetchWeather();
-      break;
-    case MODE_BUS:
-      Serial.println("Mode: Bus");
-      fetchBusTimes();
-      break;
-    case MODE_TIME:
-      Serial.println("Mode: Time");
-      showTime();
-      break;
-    case MODE_EXCUSE:
-      Serial.println("Mode: Excuse");
-      fetchExcuse();
-      break;
+    case MODE_WEATHER: Serial.println("Mode: Weather"); fetchWeather(); break;
+    case MODE_BUS:     Serial.println("Mode: Bus"); fetchBusTimes(); break;
+    case MODE_TIME:    Serial.println("Mode: Time"); showTime(); break;
+    case MODE_EXCUSE:  Serial.println("Mode: Excuse"); fetchExcuse(); break;
+    case MODE_MESSAGE: Serial.println("Mode: Message"); fetchMessage(); break;
   }
 
-  matrix.setTextColor(getModeColor(currentMode)); // Set color based on mode
+  matrix.setTextColor(getModeColor(currentMode));
   Serial.println("[Display] " + displayText);
   scrollX = matrix.width();
 }
@@ -149,23 +181,16 @@ void fetchWeather() {
   if (httpCode > 0) {
     String payload = http.getString();
     StaticJsonDocument<1024> doc;
-    DeserializationError error = deserializeJson(doc, payload);
-
-    if (!error) {
+    DeserializationError err = deserializeJson(doc, payload);
+    if (!err) {
       String tempF = doc["current"]["temp_f"].as<String>();
       String condition = doc["current"]["condition"]["text"].as<String>();
       displayText = condition + ", " + tempF + "F";
-      Serial.println("Weather: " + displayText);
-    } else {
-      displayText = "Weather parse error";
-      Serial.println("Weather JSON error");
-    }
-  } else {
-    displayText = "Weather HTTP " + String(httpCode);
-    Serial.println(displayText);
-  }
+    } else displayText = "Weather parse error";
+  } else displayText = "Weather HTTP " + String(httpCode);
 
   http.end();
+  Serial.println("Weather: " + displayText);
 }
 
 // --- Bus ---
@@ -180,18 +205,18 @@ void fetchBusTimes() {
     if (payload.startsWith("\xEF\xBB\xBF")) payload.remove(0, 3);
 
     DynamicJsonDocument busDoc(8192);
-    DeserializationError error = deserializeJson(busDoc, payload);
+    DeserializationError err = deserializeJson(busDoc, payload);
 
-    if (error == DeserializationError::InvalidInput) {
+    if (err == DeserializationError::InvalidInput) {
       int firstBracket = payload.indexOf('[');
       int lastBracket = payload.lastIndexOf(']');
       if (firstBracket != -1 && lastBracket != -1 && lastBracket > firstBracket) {
         payload = payload.substring(firstBracket + 1, lastBracket);
-        error = deserializeJson(busDoc, payload);
+        err = deserializeJson(busDoc, payload);
       }
     }
 
-    if (!error) {
+    if (!err) {
       JsonArray times = busDoc["Times"];
       if (times.isNull()) times = busDoc[0]["Times"];
 
@@ -202,34 +227,17 @@ void fetchBusTimes() {
           if (!t.containsKey("Seconds") || t["Seconds"].isNull()) continue;
           int sec = t["Seconds"];
           if (sec <= 0) continue;
-          int min = sec / 60;
-          if (min < 1) min = 1;
+          int min = max(1, sec / 60);
           msg += String(min) + "m ";
           if (++count >= 3) break;
         }
-
-        if (count == 0) {
-          displayText = "No valid times";
-          Serial.println("No valid bus times found");
-        } else {
-          displayText = msg;
-          Serial.println("Shuttle times: " + displayText);
-        }
-      } else {
-        displayText = "No times";
-        Serial.println("No bus times found");
-      }
-    } else {
-      displayText = "Bus parse error";
-      Serial.print("Bus JSON error: ");
-      Serial.println(error.c_str());
-    }
-  } else {
-    displayText = "Bus HTTP " + String(httpCode);
-    Serial.println(displayText);
-  }
+        displayText = count ? msg : "No valid times";
+      } else displayText = "No times";
+    } else displayText = "Bus parse error";
+  } else displayText = "Bus HTTP " + String(httpCode);
 
   http.end();
+  Serial.println("Bus: " + displayText);
 }
 
 // --- Excuse ---
@@ -241,21 +249,48 @@ void fetchExcuse() {
   if (httpCode > 0) {
     String payload = http.getString();
     StaticJsonDocument<512> doc;
-    DeserializationError error = deserializeJson(doc, payload);
+    DeserializationError err = deserializeJson(doc, payload);
+    if (!err && doc.containsKey("text")) {
+      displayText = "Excuse: " + doc["text"].as<String>();
+    } else displayText = "Excuse parse error";
+  } else displayText = "Excuse HTTP " + String(httpCode);
 
-    if (!error && doc.containsKey("text")) {
-      String excuse = doc["text"].as<String>();
-      displayText = "Excuse: " + excuse;
-      Serial.println(displayText);
-    } else {
-      displayText = "Excuse parse error";
-      Serial.println("Excuse JSON error");
-    }
+  http.end();
+  Serial.println("Excuse: " + displayText);
+}
+
+// --- Message ---
+void fetchMessage() {
+  HTTPClient http;
+  http.begin(messageURL);
+  int httpCode = http.GET();
+
+  if (httpCode == 200) {
+    String payload = http.getString();
+    payload.trim();
+    displayText = payload;
+  } else displayText = "Msg HTTP " + String(httpCode);
+
+  http.end();
+  Serial.println("Message: " + displayText);
+}
+
+// --- Next Message (advance queue when leaving message mode) ---
+void nextMessage() {
+  HTTPClient http;
+  http.begin(nextURL);
+  int httpCode = http.GET();
+
+  if (httpCode == 200) {
+    String payload = http.getString();
+    payload.trim();
+    displayText = payload;
+    scrollX = matrix.width();
+    Serial.println("Next message: " + displayText);
   } else {
-    displayText = "Excuse HTTP " + String(httpCode);
-    Serial.println(displayText);
+    Serial.print("Next message HTTP error: ");
+    Serial.println(httpCode);
   }
-
   http.end();
 }
 
@@ -266,7 +301,6 @@ void showTime() {
     displayText = "No time data";
     return;
   }
-
   char buf[16];
   strftime(buf, sizeof(buf), "%I:%M%p", &timeinfo);
   displayText = String(buf);
