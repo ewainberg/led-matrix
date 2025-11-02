@@ -19,4 +19,8 @@ const String busURL = "https://ucf.transloc.com/Services/JSONPRelay.svc/GetStopA
 // --- DEV EXCUSES ---
 const String excusesURL = "https://excuses.onrender.com/excuse";
 
+// --- MESSAGES ---
+const String messageURL = "https://saladasz.net/matrix-message/message.txt";
+const String nextURL = "https://saladasz.net/matrix-message/next.php?key=queueKey";
+
 #endif
