@@ -6,6 +6,7 @@
 #include <Adafruit_NeoPixel.h>
 #include <time.h>
 #include "config.h"
+#include "icons/icons.h"
 
 // ---------- MATRIX SETUP ----------
 #define PIN 23
@@ -20,7 +21,6 @@ Adafruit_NeoMatrix matrix(
   NEO_GRB + NEO_KHZ800
 );
 
-// ---------- TEXT CANVAS ----------
 GFXcanvas1 textCanvas(TEXT_AREA_WIDTH, MATRIX_HEIGHT);
 
 // ---------- TIMING ----------
@@ -29,19 +29,17 @@ unsigned long lastDataFetch   = 0;
 unsigned long lastModeSwitch  = 0;
 unsigned long currentModeDuration = 0;
 
-// Explicit per-mode durations (milliseconds)
+// Mode durations (milliseconds)
 const uint32_t DURATION_WEATHER       = 9000;
 const uint32_t DURATION_BUS           = 9000;
 const uint32_t DURATION_EXCUSE        = 20000;
-const uint32_t DURATION_MESSAGE_SHOW  = 20000; // one clean pass
-const uint32_t DURATION_MESSAGE_EMPTY = 250;  // bounce out fast
+const uint32_t DURATION_MESSAGE_SHOW  = 20000;
+const uint32_t DURATION_MESSAGE_EMPTY = 250;
 
-// Precise scroll control (slightly faster)
-const uint16_t SCROLL_DELAY_MS        = 40; // frame delay
-const uint8_t  SCROLL_PIXELS_PER_STEP = 3;  // px per frame
-
-// New: pause before scrolling starts
-const uint16_t SCROLL_START_PAUSE_MS  = 3000; // 1.5s pause at x=0
+// Scroll settings
+const uint16_t SCROLL_DELAY_MS        = 40;
+const uint8_t  SCROLL_PIXELS_PER_STEP = 3;
+const uint16_t SCROLL_START_PAUSE_MS  = 3000;
 
 // ---------- MODES ----------
 enum DisplayMode {
@@ -56,12 +54,14 @@ DisplayMode currentMode = MODE_WEATHER;
 // ---------- STATE ----------
 String displayText = "";
 String timeText    = "";
-int16_t scrollX    = 0;      // start at left now
+int16_t scrollX    = 0;
 int     scrollPasses = 0;
-
-// New: scrolling pause state
 bool scrollPaused = true;
 unsigned long scrollPauseStart = 0;
+
+const uint8_t (*currentWeatherIcon)[12] = nullptr;
+uint16_t iconPrimary = 0;
+uint16_t iconSecondary = 0;
 
 // ---------- COLORS ----------
 uint16_t weatherColor;
@@ -74,12 +74,12 @@ uint16_t messageColor;
 void fetchWeather();
 void fetchBusTimes();
 void fetchExcuse();
-bool handleMessageMode(); // returns true if a message will be displayed
-
+bool handleMessageMode();
 void updateClock();
 void updateDisplay();
 void scrollText();
 void drawClock();
+void drawWeatherIcon(const uint8_t icon[8][12], uint16_t primary, uint16_t secondary, int16_t x, int16_t y);
 
 uint32_t getModeDuration(DisplayMode m);
 uint16_t getModeColor(DisplayMode mode);
@@ -105,6 +105,16 @@ int16_t textWidth(const String &s) {
   return (int16_t)w;
 }
 
+uint32_t getModeDuration(DisplayMode m) {
+  switch (m) {
+    case MODE_WEATHER: return DURATION_WEATHER;
+    case MODE_BUS:     return DURATION_BUS;
+    case MODE_EXCUSE:  return DURATION_EXCUSE;
+    case MODE_MESSAGE: return DURATION_MESSAGE_SHOW;
+    default:           return 4000;
+  }
+}
+
 uint16_t getModeColor(DisplayMode mode) {
   switch (mode) {
     case MODE_WEATHER: return weatherColor;
@@ -115,12 +125,19 @@ uint16_t getModeColor(DisplayMode mode) {
   }
 }
 
-uint32_t getModeDuration(DisplayMode m) {
-  switch (m) {
-    case MODE_WEATHER: return DURATION_WEATHER;
-    case MODE_BUS:     return DURATION_BUS;
-    case MODE_EXCUSE:  return DURATION_EXCUSE;
-    case MODE_MESSAGE: default: return 4000;
+// ---------- DRAW WEATHER ICON ----------
+void drawWeatherIcon(const uint8_t icon[8][12],
+                     uint16_t primary,
+                     uint16_t secondary,
+                     int16_t x,
+                     int16_t y) {
+  for (uint8_t row = 0; row < 8; row++) {
+    for (uint8_t col = 0; col < 12; col++) {
+      if (pgm_read_byte(&(icon[row][col])) == 1) {
+        uint16_t color = (row < 4) ? primary : secondary;
+        matrix.drawPixel(x + col, y + row, color);
+      }
+    }
   }
 }
 
@@ -129,7 +146,7 @@ void updateClock() {
   struct tm timeinfo;
   if (getLocalTime(&timeinfo)) {
     char buf[8];
-    strftime(buf, sizeof(buf), "%I:%M", &timeinfo); // 12h, no AM/PM
+    strftime(buf, sizeof(buf), "%I:%M", &timeinfo);
     String t = buf;
     if (t[0] == '0') t = t.substring(1);
     timeText = t;
@@ -140,11 +157,9 @@ void drawClock() {
   matrix.setTextSize(1);
   matrix.setTextWrap(false);
   matrix.setTextColor(timeColor);
-
   int16_t wClock = textWidth(timeText);
   int16_t xClock = (int16_t)MATRIX_WIDTH - wClock;
   if (xClock < CLOCK_X_START) xClock = CLOCK_X_START;
-
   matrix.fillRect(CLOCK_X_START, 0, MATRIX_WIDTH - CLOCK_X_START, MATRIX_HEIGHT, 0);
   matrix.setCursor(xClock, 0);
   matrix.print(timeText);
@@ -153,8 +168,19 @@ void drawClock() {
 // ---------- SETUP ----------
 void setup() {
   Serial.begin(115200);
-  Serial.println("Connecting to WiFi...");
+  matrix.begin();
+  matrix.setTextWrap(false);
+  matrix.setBrightness(20);
+  matrix.fillScreen(0);
+  matrix.show();
 
+  weatherColor = matrix.Color(0, 150, 255);
+  timeColor    = matrix.Color(0, 255, 100);
+  busColor     = matrix.Color(255, 180, 0);
+  excuseColor  = matrix.Color(255, 100, 255);
+  messageColor = matrix.Color(255, 255, 0);
+
+  Serial.println("Connecting to WiFi...");
   WiFi.begin(ssid, password);
   int retryCount = 0;
   while (WiFi.status() != WL_CONNECTED && retryCount < 20) {
@@ -172,26 +198,11 @@ void setup() {
 
   configTzTime("EST5EDT,M3.2.0,M11.1.0", "pool.ntp.org", "time.nist.gov");
 
-  matrix.begin();
-  matrix.setTextWrap(false);
-  matrix.setBrightness(20);
-
-  textCanvas.setTextWrap(false);
-  textCanvas.setTextSize(1);
-  textCanvas.setTextColor(1);
-
-  weatherColor = matrix.Color(0, 150, 255);
-  timeColor    = matrix.Color(0, 255, 100);
-  busColor     = matrix.Color(255, 180, 0);
-  excuseColor  = matrix.Color(255, 100, 255);
-  messageColor = matrix.Color(255, 255, 0);
-
   fetchWeather();
   updateDisplay();
   scrollX = 0;
   scrollPaused = true;
   scrollPauseStart = millis();
-
   lastDataFetch = millis();
   lastModeSwitch = millis();
   currentModeDuration = getModeDuration(currentMode);
@@ -204,8 +215,8 @@ void loop() {
   if (now - lastModeSwitch >= currentModeDuration) {
     currentMode = (DisplayMode)((currentMode + 1) % MODE_COUNT);
     updateDisplay();
-    scrollX = 0;                 // start at left each mode
-    scrollPaused = true;         // arm pause each mode
+    scrollX = 0;
+    scrollPaused = true;
     scrollPauseStart = now;
     scrollPasses = 0;
     lastModeSwitch = now;
@@ -232,19 +243,16 @@ void updateDisplay() {
       fetchWeather();
       currentModeDuration = getModeDuration(MODE_WEATHER);
       break;
-
     case MODE_BUS:
       Serial.println("Mode: Bus");
       fetchBusTimes();
       currentModeDuration = getModeDuration(MODE_BUS);
       break;
-
     case MODE_EXCUSE:
       Serial.println("Mode: Excuse");
       fetchExcuse();
       currentModeDuration = getModeDuration(MODE_EXCUSE);
       break;
-
     case MODE_MESSAGE: {
       Serial.println("Mode: Message");
       bool willDisplay = handleMessageMode();
@@ -254,15 +262,13 @@ void updateDisplay() {
   }
 
   Serial.println("[Display] " + displayText);
-
-  // Reset scrolling state for this mode: start at left and pause
   scrollX = 0;
   scrollPaused = true;
   scrollPauseStart = millis();
   scrollPasses = 0;
 }
 
-// ---------- FETCH FUNCTIONS ----------
+// ---------- FETCH WEATHER ----------
 void fetchWeather() {
   HTTPClient http;
   http.begin(weatherPath);
@@ -275,20 +281,45 @@ void fetchWeather() {
       String tempF = doc["current"]["temp_f"].as<String>();
       String condition = doc["current"]["condition"]["text"].as<String>();
       displayText = sanitizeOneLine(condition + ", " + tempF + "F");
-    } else {
-      displayText = "Weather parse error";
-    }
-  } else {
-    displayText = "Weather HTTP " + String(httpCode);
-  }
+
+      currentWeatherIcon = nullptr;
+      iconPrimary = weatherColor;
+      iconSecondary = weatherColor;
+
+      for (auto &entry : weatherIcons) {
+        if (condition.indexOf(entry.condition) != -1) {
+          currentWeatherIcon = entry.icon;
+          iconPrimary = matrix.Color(entry.r1, entry.g1, entry.b1);
+          iconSecondary = matrix.Color(entry.r2, entry.g2, entry.b2);
+          break;
+        }
+      }
+
+      matrix.fillScreen(0);
+      matrix.setTextSize(1);
+      matrix.setTextColor(weatherColor);
+      matrix.setCursor(0, 0);
+      matrix.print(displayText);
+
+      if (currentWeatherIcon) {
+        int16_t iconX = textWidth(displayText) + 2;
+        if (iconX + 12 < CLOCK_X_START) {
+          drawWeatherIcon(currentWeatherIcon, iconPrimary, iconSecondary, iconX, 0);
+        }
+      }
+
+      drawClock();
+      matrix.show();
+    } else displayText = "Weather parse error";
+  } else displayText = "Weather HTTP " + String(httpCode);
   http.end();
 }
 
+// ---------- FETCH BUS ----------
 void fetchBusTimes() {
   HTTPClient http;
   http.begin(busURL);
   int httpCode = http.GET();
-
   if (httpCode == 200) {
     String payload = http.getString();
     payload.trim();
@@ -315,11 +346,11 @@ void fetchBusTimes() {
   http.end();
 }
 
+// ---------- FETCH EXCUSE ----------
 void fetchExcuse() {
   HTTPClient http;
   http.begin(excusesURL);
   int httpCode = http.GET();
-
   if (httpCode == 200) {
     String payload = http.getString();
     StaticJsonDocument<1024> doc;
@@ -327,22 +358,19 @@ void fetchExcuse() {
       displayText = sanitizeOneLine("Excuse: " + doc["text"].as<String>());
     } else displayText = "Excuse parse error";
   } else displayText = "Excuse HTTP " + String(httpCode);
-
   http.end();
 }
 
-// ---------- MESSAGE MODE (your exact flow) ----------
+// ---------- MESSAGE MODE ----------
 bool handleMessageMode() {
-  // 1) GET current message.txt
   HTTPClient http;
-  http.begin(messageURL); // messageURL must include ?key=... in config.h
+  http.begin(messageURL);
   int httpCode = http.GET();
-
   if (httpCode != 200) {
     http.end();
-    displayText = "";        // nothing to show
+    displayText = "";
     Serial.printf("[Message] CURRENT HTTP %d\n", httpCode);
-    return false;            // exit mode quickly
+    return false;
   }
 
   String msg = http.getString();
@@ -350,33 +378,34 @@ bool handleMessageMode() {
   msg.trim();
 
   if (msg.length() == 0 || msg == "No messages" || msg == "No Messages") {
-    // 2) If "No Messages" -> call nextURL and EXIT mode
     HTTPClient http2;
-    http2.begin(nextURL);    // nextURL must include ?key=...
+    http2.begin(nextURL);
     int code2 = http2.GET();
     http2.end();
     Serial.printf("[Message] NONE. NEXT HTTP %d\n", code2);
-    displayText = "";        // nothing to display this cycle
-    return false;            // exit mode quickly
+    displayText = "";
+    return false;
   }
 
-  // 3) If there IS a message -> set displayText, then call nextURL BEFORE scrolling, then display once and exit
   displayText = sanitizeOneLine(msg);
   Serial.printf("[Message] SHOW: %s\n", displayText.c_str());
 
-  // pop immediately so next time messageURL returns the next one
   HTTPClient http3;
   http3.begin(nextURL);
   int code3 = http3.GET();
   http3.end();
   Serial.printf("[Message] NEXT pop HTTP %d\n", code3);
-
-  // will display this cycle
   return true;
 }
 
-// ---------- RENDER / SCROLL ----------
+// ---------- SCROLL ----------
 void scrollText() {
+  if (currentMode == MODE_WEATHER) {
+    drawClock();
+    matrix.show();
+    return;
+  }
+
   matrix.fillRect(0, 0, TEXT_AREA_WIDTH, MATRIX_HEIGHT, 0);
   textCanvas.fillScreen(0);
   textCanvas.setTextWrap(false);
@@ -384,36 +413,19 @@ void scrollText() {
   textCanvas.setTextColor(1);
 
   int16_t w = textWidth(displayText);
-
-  // force scrolling in EXCUSE and MESSAGE; otherwise only if too wide
-  bool forceScroll  = (currentMode == MODE_EXCUSE || currentMode == MODE_MESSAGE);
-  bool needsScroll  = forceScroll || (w > TEXT_AREA_WIDTH);
+  bool forceScroll = (currentMode == MODE_EXCUSE || currentMode == MODE_MESSAGE);
+  bool needsScroll = forceScroll || (w > TEXT_AREA_WIDTH);
 
   if (!needsScroll) {
-    // Static text
     textCanvas.setCursor(0, 0);
     textCanvas.print(displayText);
   } else {
-    // Pause at left before scrolling
-    if (scrollPaused) {
-      if (millis() - scrollPauseStart >= SCROLL_START_PAUSE_MS) {
-        scrollPaused = false; // start moving
-      }
-    }
-
-    // Draw at current position (starts at x=0)
+    if (scrollPaused && millis() - scrollPauseStart >= SCROLL_START_PAUSE_MS)
+      scrollPaused = false;
     textCanvas.setCursor(scrollX, 0);
     textCanvas.print(displayText);
-
-    // Move only after pause ends
-    if (!scrollPaused) {
-      scrollX -= SCROLL_PIXELS_PER_STEP;
-    }
-
-    // One pass ends when right edge clears the left edge
+    if (!scrollPaused) scrollX -= SCROLL_PIXELS_PER_STEP;
     if (scrollX + w < 0) {
-      // Do not wrap within the same mode; leave it off-screen until mode timer flips
-      // If you prefer wrap, uncomment below:
       scrollX = 0; scrollPaused = true; scrollPauseStart = millis();
       scrollPasses++;
     }
@@ -422,7 +434,6 @@ void scrollText() {
   matrix.drawBitmap(0, 0, textCanvas.getBuffer(),
                     TEXT_AREA_WIDTH, MATRIX_HEIGHT,
                     getModeColor(currentMode), 0);
-
   drawClock();
   matrix.show();
 }
