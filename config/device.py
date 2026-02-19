@@ -39,3 +39,22 @@ BASE_MODE_DURATIONS_S = {
 }
 
 EMPTY_MESSAGE_DURATION_S = 0
+
+# -------- Matrix output (WS2812B via PWM) --------
+LED_GPIO = 18
+LED_FREQ_HZ = 800000
+LED_DMA = 10
+LED_BRIGHTNESS = 100  # 0-255
+LED_INVERT = False
+LED_CHANNEL = 0
+
+# -------- NeoMatrix wiring flags --------
+FLIP_X = False
+FLIP_Y = False
+COLUMN_MAJOR = True   # NEO_MATRIX_COLUMNS
+ZIGZAG = True         # NEO_MATRIX_ZIGZAG
+
+# -------- Render --------
+RENDER_FPS = 30
+FONT_PATH = "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf"
+FONT_SIZE_PX = 8

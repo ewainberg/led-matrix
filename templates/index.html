@@ -45,6 +45,10 @@
   </div>
 
   <div id="meta" class="meta mono"></div>
+  <div style="margin: 10px 0;">
+    <div class="mono" style="margin-bottom:6px;">Preview (rendered framebuffer)</div>
+    <img id="preview" style="image-rendering: pixelated; width: 640px; height: 32px; border:1px solid #ddd; border-radius:8px;" />
+  </div>
   <div id="grid"></div>
 
 <script>
@@ -100,6 +104,7 @@ async function refresh() {
   const r = await fetch('/api/state');
   const s = await r.json();
 
+  document.getElementById('preview').src = '/preview.png?t=' + Date.now();
   document.getElementById('meta').textContent =
     'mode=' + s.current_mode +
     ' | mode_duration=' + s.current_mode_duration_s + 's' +

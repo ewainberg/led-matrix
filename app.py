@@ -13,6 +13,7 @@ from fetchers import Fetcher
 from layout import compute_mode_duration_s
 from web import create_app
 from control import Control
+from matrix.renderer import Renderer
 
 
 MODE_ORDER = ["weather", "bus", "excuse", "message"]
@@ -32,6 +33,19 @@ def main() -> None:
     )
 
     store = StateStore(initial_time_text=clock_text())
+    renderer = Renderer(store)
+
+    def render_loop() -> None:
+        dt = 1.0 / float(device.RENDER_FPS)
+        while True:
+            try:
+                renderer.tick()
+            except Exception:
+                pass
+            time.sleep(dt)
+
+    threading.Thread(target=render_loop, daemon=True).start()
+
     fetcher = Fetcher(
         weather_url=weather_url,
         bus_url=device.BUS_URL,
@@ -107,7 +121,7 @@ def main() -> None:
     t = threading.Thread(target=background_loop, daemon=True)
     t.start()
 
-    app = create_app(store, ctl)
+    app = create_app(store, ctl, preview_png_provider=renderer.get_preview_png)
     host = os.environ.get("BIND_HOST", "0.0.0.0")
     port = int(os.environ.get("PORT", "8080"))
     app.run(host=host, port=port, debug=False, use_reloader=False)

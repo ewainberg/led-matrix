@@ -1,14 +1,15 @@
 from __future__ import annotations
 
 import time
-from flask import Flask, jsonify, request, render_template
+import io
+from flask import Flask, jsonify, Response, request, send_file, render_template
 
 from state import StateStore
 from layout import compute_scroll_plan
 from control import Control
 
 
-def create_app(store: StateStore, ctl: Control) -> Flask:
+def create_app(store: StateStore, ctl: Control, preview_png_provider=None) -> Flask:
     app = Flask(__name__)
 
     @app.get("/")
@@ -68,5 +69,12 @@ def create_app(store: StateStore, ctl: Control) -> Flask:
     def api_refresh():
         ctl.request_refresh()
         return jsonify({"ok": True, "queued": True})
+    
+    @app.get("/preview.png")
+    def preview_png():
+        if not preview_png_provider:
+            return Response("preview not available", status=404)
+        data = preview_png_provider() or b""
+        return send_file(io.BytesIO(data), mimetype="image/png")
 
     return app

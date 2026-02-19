@@ -1,3 +1,5 @@
 flask
 requests
 python-dotenv
+pillow 
+rpi_ws281x
