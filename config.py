@@ -20,16 +20,19 @@ NEXT_URL = os.getenv("NEXT_URL", "")
 TZ = os.getenv("TZ", "America/New_York")
 
 # -------- Fetch timing --------
-FETCH_INTERVAL_S = int(os.getenv("FETCH_INTERVAL_S", "30"))
+FETCH_INTERVAL_S = int(os.getenv("FETCH_INTERVAL_S", 30))
 
 # -------- Display geometry --------
-TEXT_AREA_WIDTH_PX = int(os.getenv("TEXT_AREA_WIDTH_PX", "128"))
+TEXT_AREA_WIDTH_PX = int(os.getenv("TEXT_AREA_WIDTH_PX", 128))
+MATRIX_WIDTH_PX = int(os.getenv("MATRIX_WIDTH_PX", 160))
+MATRIX_HEIGHT_PX = int(os.getenv("MATRIX_HEIGHT_PX", 8))
+CLOCK_START_X_PX = int(os.getenv("CLOCK_START_X_PX", 128))
 
 # -------- Scroll behavior --------
-SCROLL_START_PAUSE_S = float(os.getenv("SCROLL_START_PAUSE_S", "1.0"))
-SCROLL_GAP_PX = int(os.getenv("SCROLL_GAP_PX", "12"))
-SCROLL_SPEED_PX_S = float(os.getenv("SCROLL_SPEED_PX_S", "60.0"))
-SCROLL_PASSES_MIN = int(os.getenv("SCROLL_PASSES_MIN", "2"))
+SCROLL_START_PAUSE_S = float(os.getenv("SCROLL_START_PAUSE_S", 1.0))
+SCROLL_GAP_PX = int(os.getenv("SCROLL_GAP_PX", 12))
+SCROLL_SPEED_PX_S = float(os.getenv("SCROLL_SPEED_PX_S", 60.0))
+SCROLL_PASSES_MIN = int(os.getenv("SCROLL_PASSES_MIN", 2))
 
 # -------- Base durations --------
 BASE_MODE_DURATIONS_S = {
@@ -39,4 +42,4 @@ BASE_MODE_DURATIONS_S = {
     "message": 10,
 }
 
-EMPTY_MESSAGE_DURATION_S = 2
+EMPTY_MESSAGE_DURATION_S = 0
