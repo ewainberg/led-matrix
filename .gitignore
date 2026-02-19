@@ -1,0 +1,50 @@
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Virtual environments
+venv/
+.venv/
+
+# Environment files / secrets
+.env
+*.env
+
+# Local overrides
+local_config.py
+
+# Logs
+*.log
+logs/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editors / IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Testing / coverage
+.coverage
+coverage.xml
+htmlcov/
+.pytest_cache/
+
+# Runtime files
+*.pid
+*.sock
+
+# Temp files
+*.tmp
+*.bak
+*~
