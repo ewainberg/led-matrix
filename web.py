@@ -43,7 +43,7 @@ def create_app(store: StateStore, ctl: Control) -> Flask:
         on = data.get("on")
         if not isinstance(on, bool):
             return jsonify({"ok": False, "error": "Expected JSON: {on: true|false}"}), 400
-        store.set_power(on)
+        store.update(power_on=on)
         return jsonify({"ok": True, "on": on})
 
     @app.post("/api/rotation")
@@ -52,7 +52,7 @@ def create_app(store: StateStore, ctl: Control) -> Flask:
         paused = data.get("paused")
         if not isinstance(paused, bool):
             return jsonify({"ok": False, "error": "Expected JSON: {paused: true|false}"}), 400
-        store.set_rotation_paused(paused)
+        store.update(rotation_paused=paused)
         return jsonify({"ok": True, "paused": paused})
 
     @app.post("/api/mode")
@@ -61,7 +61,7 @@ def create_app(store: StateStore, ctl: Control) -> Flask:
         mode = data.get("mode", "")
         if mode not in ("weather", "bus", "excuse", "message", ""):
             return jsonify({"ok": False, "error": "Invalid mode"}), 400
-        store.set_mode(mode)
+        store.update(forced_mode=mode)
         return jsonify({"ok": True, "mode": mode})
     
     @app.post("/api/refresh")
