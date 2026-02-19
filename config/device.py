@@ -4,7 +4,7 @@ WEATHER_LOCATION = "Orlando"
 
 BUS_URL = "https://ucf.transloc.com/Services/JSONPRelay.svc/GetStopArrivalTimes?apiKey=&stopIds=60&version=2"
 EXCUSES_URL = "https://excuses.onrender.com/excuse"
-MESSAGE_URL = "https://example.com/matrix-message/message.txt"
+MESSAGE_URL = "https://saladasz.net/matrix-message/message.txt"
 
 # -------- Timezone --------
 TZ = "America/New_York"
