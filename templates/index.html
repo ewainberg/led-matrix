@@ -1,0 +1,145 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>LED Matrix Debug</title>
+  <style>
+    body { font-family: system-ui, -apple-system, Arial, sans-serif; margin: 16px; }
+    .meta { margin-bottom: 14px; }
+    .row { display: grid; grid-template-columns: 140px 1fr; gap: 10px; padding: 10px 0; border-bottom: 1px solid #ddd; }
+    .k { font-weight: 600; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
+    .pill { display: inline-block; padding: 2px 8px; border-radius: 999px; background: #eee; margin-left: 6px; }
+
+    .controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 10px 0 14px; }
+    button { padding: 8px 10px; border: 1px solid #ccc; background: #f7f7f7; border-radius: 8px; cursor: pointer; }
+    button:hover { background: #eee; }
+    button:disabled { opacity: 0.55; cursor: not-allowed; }
+    select { padding: 8px 10px; border: 1px solid #ccc; background: #fff; border-radius: 8px; }
+    .status { margin-left: 6px; }
+  </style>
+</head>
+<body>
+  <h2>LED Matrix Debug</h2>
+
+  <div class="controls mono">
+    <button id="pwrOn">Power On</button>
+    <button id="pwrOff">Power Off</button>
+
+    <button id="pause">Pause</button>
+    <button id="resume">Resume</button>
+
+    <button id="refreshNow">Refresh Now</button>
+
+    <span class="status">Mode:</span>
+    <select id="modeSel">
+      <option value="">(auto)</option>
+      <option value="weather">weather</option>
+      <option value="bus">bus</option>
+      <option value="excuse">excuse</option>
+      <option value="message">message</option>
+    </select>
+    <button id="applyMode">Apply</button>
+    <button id="clearMode">Clear</button>
+  </div>
+
+  <div id="meta" class="meta mono"></div>
+  <div id="grid"></div>
+
+<script>
+function esc(s) {
+  return (s ?? '').toString()
+    .replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;');
+}
+
+async function postJson(url, body) {
+  const r = await fetch(url, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: body ? JSON.stringify(body) : '{}',
+  });
+  let j = null;
+  try { j = await r.json(); } catch {}
+  if (!r.ok) {
+    const msg = (j && j.error) ? j.error : ('HTTP ' + r.status);
+    throw new Error(msg);
+  }
+  return j;
+}
+
+async function wireControls() {
+  document.getElementById('pwrOn').onclick = async () => {
+    try { await postJson('/api/power', {on:true}); await refresh(); } catch(e){ alert(e.message); }
+  };
+  document.getElementById('pwrOff').onclick = async () => {
+    try { await postJson('/api/power', {on:false}); await refresh(); } catch(e){ alert(e.message); }
+  };
+
+  document.getElementById('pause').onclick = async () => {
+    try { await postJson('/api/rotation', {paused:true}); await refresh(); } catch(e){ alert(e.message); }
+  };
+  document.getElementById('resume').onclick = async () => {
+    try { await postJson('/api/rotation', {paused:false}); await refresh(); } catch(e){ alert(e.message); }
+  };
+
+  document.getElementById('refreshNow').onclick = async () => {
+    try { await postJson('/api/refresh'); } catch(e){ alert(e.message); }
+  };
+
+  document.getElementById('applyMode').onclick = async () => {
+    const mode = document.getElementById('modeSel').value;
+    try { await postJson('/api/mode', {mode}); await refresh(); } catch(e){ alert(e.message); }
+  };
+  document.getElementById('clearMode').onclick = async () => {
+    try { await postJson('/api/mode', {mode:""}); await refresh(); } catch(e){ alert(e.message); }
+  };
+}
+
+async function refresh() {
+  const r = await fetch('/api/state');
+  const s = await r.json();
+
+  document.getElementById('meta').textContent =
+    'mode=' + s.current_mode +
+    ' | mode_duration=' + s.current_mode_duration_s + 's' +
+    ' | clock=' + s.time_text +
+    ' | updated=' + new Date(s._server_time_unix*1000).toLocaleTimeString();
+
+  const modes = [
+    ['weather', s.weather],
+    ['bus', s.bus],
+    ['excuse', s.excuse],
+    ['message', s.message],
+  ];
+
+  const grid = document.getElementById('grid');
+  grid.innerHTML = '';
+
+  for (const [name, snap] of modes) {
+    const div = document.createElement('div');
+    div.className = 'row';
+
+    const extra = snap._scroll
+      ? `<div class="mono">fit=${snap._scroll.needs_scroll ? 'scroll' : 'fits'} | text_px=${snap._scroll.text_width_px} | cycle_s=${snap._scroll.cycle_time_s.toFixed(2)} | total_s=${snap._scroll.total_time_s.toFixed(2)}</div>`
+      : '';
+
+    div.innerHTML = `
+      <div class="k">${name}<span class="pill">${snap.ok ? 'ok' : 'err'}</span></div>
+      <div>
+        <div>${snap.display_text ? esc(snap.display_text) : '<span class="mono">(empty)</span>'}</div>
+        <div class="mono">fetched_at=${new Date(snap.fetched_at_unix*1000).toLocaleTimeString()}</div>
+        ${snap.error ? `<div class="mono">error=${esc(snap.error)}</div>` : ''}
+        ${extra}
+      </div>
+    `;
+    grid.appendChild(div);
+  }
+}
+
+wireControls();
+refresh();
+setInterval(refresh, 2000);
+</script>
+</body>
+</html>

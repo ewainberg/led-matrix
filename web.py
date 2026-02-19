@@ -1,92 +1,19 @@
 from __future__ import annotations
 
 import time
-from flask import Flask, jsonify, Response
+from flask import Flask, jsonify, request, render_template
 
 from state import StateStore
 from layout import compute_scroll_plan
+from control import Control
 
 
-def create_app(store: StateStore) -> Flask:
+def create_app(store: StateStore, ctl: Control) -> Flask:
     app = Flask(__name__)
 
     @app.get("/")
-    def index() -> Response:
-        html = """
-<!doctype html>
-<html>
-<head>
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>LED Matrix Debug</title>
-  <style>
-    body { font-family: system-ui, -apple-system, Arial, sans-serif; margin: 16px; }
-    .meta { margin-bottom: 14px; }
-    .row { display: grid; grid-template-columns: 140px 1fr; gap: 10px; padding: 10px 0; border-bottom: 1px solid #ddd; }
-    .k { font-weight: 600; }
-    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
-    .pill { display: inline-block; padding: 2px 8px; border-radius: 999px; background: #eee; margin-left: 6px; }
-  </style>
-</head>
-<body>
-  <h2>LED Matrix Debug</h2>
-  <div id="meta" class="meta mono"></div>
-  <div id="grid"></div>
-
-<script>
-function esc(s) {
-  return (s ?? '').toString()
-    .replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;');
-}
-
-async function refresh() {
-  const r = await fetch('/api/state');
-  const s = await r.json();
-
-  document.getElementById('meta').textContent =
-    'mode=' + s.current_mode +
-    ' | mode_duration=' + s.current_mode_duration_s + 's' +
-    ' | clock=' + s.time_text +
-    ' | updated=' + new Date(s._server_time_unix*1000).toLocaleTimeString();
-
-  const modes = [
-    ['weather', s.weather],
-    ['bus', s.bus],
-    ['excuse', s.excuse],
-    ['message', s.message],
-  ];
-
-  const grid = document.getElementById('grid');
-  grid.innerHTML = '';
-
-  for (const [name, snap] of modes) {
-    const div = document.createElement('div');
-    div.className = 'row';
-
-    const extra = snap._scroll
-      ? `<div class="mono">fit=${snap._scroll.needs_scroll ? 'scroll' : 'fits'} | text_px=${snap._scroll.text_width_px} | cycle_s=${snap._scroll.cycle_time_s.toFixed(2)} | total_s=${snap._scroll.total_time_s.toFixed(2)}</div>`
-      : '';
-
-    div.innerHTML = `
-      <div class="k">${name}<span class="pill">${snap.ok ? 'ok' : 'err'}</span></div>
-      <div>
-        <div>${snap.display_text ? esc(snap.display_text) : '<span class="mono">(empty)</span>'}</div>
-        <div class="mono">fetched_at=${new Date(snap.fetched_at_unix*1000).toLocaleTimeString()}</div>
-        ${snap.error ? `<div class="mono">error=${esc(snap.error)}</div>` : ''}
-        ${extra}
-      </div>
-    `;
-    grid.appendChild(div);
-  }
-}
-
-refresh();
-setInterval(refresh, 2000);
-</script>
-</body>
-</html>
-"""
-        return Response(html, mimetype="text/html")
+    def index():
+        return render_template("index.html")
 
     @app.get("/api/state")
     def api_state():
@@ -109,5 +36,37 @@ setInterval(refresh, 2000);
             }
 
         return jsonify(d)
+
+    @app.post("/api/power")
+    def api_power():
+        data = request.get_json(silent=True) or {}
+        on = data.get("on")
+        if not isinstance(on, bool):
+            return jsonify({"ok": False, "error": "Expected JSON: {on: true|false}"}), 400
+        store.set_power(on)
+        return jsonify({"ok": True, "on": on})
+
+    @app.post("/api/rotation")
+    def api_rotation():
+        data = request.get_json(silent=True) or {}
+        paused = data.get("paused")
+        if not isinstance(paused, bool):
+            return jsonify({"ok": False, "error": "Expected JSON: {paused: true|false}"}), 400
+        store.set_rotation_paused(paused)
+        return jsonify({"ok": True, "paused": paused})
+
+    @app.post("/api/mode")
+    def api_mode():
+        data = request.get_json(silent=True) or {}
+        mode = data.get("mode", "")
+        if mode not in ("weather", "bus", "excuse", "message", ""):
+            return jsonify({"ok": False, "error": "Invalid mode"}), 400
+        store.set_mode(mode)
+        return jsonify({"ok": True, "mode": mode})
+    
+    @app.post("/api/refresh")
+    def api_refresh():
+        ctl.request_refresh()
+        return jsonify({"ok": True, "queued": True})
 
     return app

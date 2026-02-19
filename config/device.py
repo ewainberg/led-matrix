@@ -21,8 +21,8 @@ CLOCK_START_X_PX = 128
 TEXT_AREA_WIDTH_PX = CLOCK_START_X_PX
 
 # -------- Quiet hours --------
-OFF_START = "23:30"
-ON_START = "07:30"
+OFF_START = "18:00"
+ON_START = "8:55"
 
 # -------- Scroll behavior --------
 SCROLL_START_PAUSE_S = 1.0

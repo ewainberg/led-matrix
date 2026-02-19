@@ -24,6 +24,9 @@ class State:
     bus: ModeSnapshot
     excuse: ModeSnapshot
     message: ModeSnapshot
+    power_on: bool
+    rotation_paused: bool
+    forced_mode: str  # "" means no forced mode
 
 
 def snap_ok(display_text: str, raw: Any) -> ModeSnapshot:
@@ -59,6 +62,9 @@ class StateStore:
             bus=empty,
             excuse=empty,
             message=empty,
+            power_on=True,
+            rotation_paused=False,
+            forced_mode="",
         )
 
     def get(self) -> State:

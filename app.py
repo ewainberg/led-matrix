@@ -12,6 +12,7 @@ from state import StateStore
 from fetchers import Fetcher
 from layout import compute_mode_duration_s
 from web import create_app
+from control import Control
 
 
 MODE_ORDER = ["weather", "bus", "excuse", "message"]
@@ -59,6 +60,7 @@ def main() -> None:
             message=fetcher.fetch_message(),
         )
 
+    ctl = Control()
     def background_loop() -> None:
         nonlocal current_mode, mode_started_at, last_fetch_at
 
@@ -66,6 +68,14 @@ def main() -> None:
             now = time.time()
 
             store.update(time_text=clock_text())
+
+            # Check for manual refresh request
+            if ctl.consume_refresh():
+                try:
+                    do_fetch_all()
+                except Exception:
+                    pass
+                last_fetch_at = now
 
             if now - last_fetch_at >= device.FETCH_INTERVAL_S:
                 try:
@@ -94,7 +104,7 @@ def main() -> None:
     t = threading.Thread(target=background_loop, daemon=True)
     t.start()
 
-    app = create_app(store)
+    app = create_app(store, ctl)
     host = os.environ.get("BIND_HOST", "0.0.0.0")
     port = int(os.environ.get("PORT", "8080"))
     app.run(host=host, port=port, debug=False, use_reloader=False)
