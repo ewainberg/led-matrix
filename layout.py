@@ -3,13 +3,7 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 
-from config import (
-    TEXT_AREA_WIDTH_PX,
-    SCROLL_START_PAUSE_S,
-    SCROLL_GAP_PX,
-    SCROLL_SPEED_PX_S,
-    SCROLL_PASSES_MIN,
-)
+from config import device
 
 CHAR_PX = 6  # placeholder for 5x7+spacing; can replace with real font metrics later
 
@@ -30,12 +24,12 @@ def estimate_text_width_px(text: str) -> int:
 def compute_scroll_plan(text: str) -> ScrollPlan:
     w = estimate_text_width_px(text)
 
-    if w <= TEXT_AREA_WIDTH_PX:
+    if w <= device.TEXT_AREA_WIDTH_PX:
         return ScrollPlan(False, w, 0, 0.0, 0.0)
 
-    cycle_distance = w + SCROLL_GAP_PX
-    cycle_time = cycle_distance / max(1e-6, SCROLL_SPEED_PX_S)
-    total = SCROLL_START_PAUSE_S + (SCROLL_PASSES_MIN * cycle_time)
+    cycle_distance = w + device.SCROLL_GAP_PX
+    cycle_time = cycle_distance / max(1e-6, device.SCROLL_SPEED_PX_S)
+    total = device.SCROLL_START_PAUSE_S + (device.SCROLL_PASSES_MIN * cycle_time)
 
     return ScrollPlan(True, w, cycle_distance, cycle_time, total)
 

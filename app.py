@@ -4,17 +4,8 @@ import os
 import time
 import threading
 
-from config import (
-    WEATHER_URL,
-    BUS_URL,
-    EXCUSES_URL,
-    MESSAGE_URL,
-    NEXT_URL,
-    TZ,
-    FETCH_INTERVAL_S,
-    BASE_MODE_DURATIONS_S,
-    EMPTY_MESSAGE_DURATION_S,
-)
+from config import secrets
+from config import device
 
 from utils import set_tz, clock_text
 from state import StateStore
@@ -32,15 +23,20 @@ def next_mode(mode: str) -> str:
 
 
 def main() -> None:
-    set_tz(TZ)
+    set_tz(device.TZ)
+
+    weather_url = (
+        f"{device.WEATHER_BASE_URL}/current.json"
+        f"?key={secrets.WEATHER_KEY}&q={device.WEATHER_LOCATION}"
+    )
 
     store = StateStore(initial_time_text=clock_text())
     fetcher = Fetcher(
-        weather_url=WEATHER_URL,
-        bus_url=BUS_URL,
-        excuses_url=EXCUSES_URL,
-        message_url=MESSAGE_URL,
-        next_url=NEXT_URL,
+        weather_url=weather_url,
+        bus_url=device.BUS_URL,
+        excuses_url=device.EXCUSES_URL,
+        message_url=device.MESSAGE_URL,
+        next_url=secrets.NEXT_URL,
         timeout_s=8,
     )
 
@@ -71,7 +67,7 @@ def main() -> None:
 
             store.update(time_text=clock_text())
 
-            if now - last_fetch_at >= FETCH_INTERVAL_S:
+            if now - last_fetch_at >= device.FETCH_INTERVAL_S:
                 try:
                     do_fetch_all()
                 except Exception:
@@ -79,12 +75,12 @@ def main() -> None:
                 last_fetch_at = now
 
             display_text = get_display_text_for_mode(current_mode)
-            base_s = int(BASE_MODE_DURATIONS_S.get(current_mode, 10))
+            base_s = int(device.BASE_MODE_DURATIONS_S.get(current_mode, 10))
             dur_s = compute_mode_duration_s(
                 current_mode,
                 display_text,
                 base_s=base_s,
-                empty_message_s=EMPTY_MESSAGE_DURATION_S,
+                empty_message_s=device.EMPTY_MESSAGE_DURATION_S,
             )
 
             store.update(current_mode=current_mode, current_mode_duration_s=dur_s)
