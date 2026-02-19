@@ -61,7 +61,7 @@ def create_app(store: StateStore, ctl: Control) -> Flask:
         mode = data.get("mode", "")
         if mode not in ("weather", "bus", "excuse", "message", ""):
             return jsonify({"ok": False, "error": "Invalid mode"}), 400
-        store.update(forced_mode=mode)
+        store.update(forced_mode=mode, mode_changed_at=time.time())
         return jsonify({"ok": True, "mode": mode})
     
     @app.post("/api/refresh")

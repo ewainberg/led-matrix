@@ -63,41 +63,44 @@ def main() -> None:
     ctl = Control()
     def background_loop() -> None:
         nonlocal current_mode, mode_started_at, last_fetch_at
-
         while True:
-            now = time.time()
+            try:
+                now = time.time()
 
-            store.update(time_text=clock_text())
+                store.update(time_text=clock_text())
 
-            # Check for manual refresh request
-            if ctl.consume_refresh():
-                try:
+                if ctl.consume_refresh():
                     do_fetch_all()
-                except Exception:
-                    pass
-                last_fetch_at = now
+                    last_fetch_at = now
 
-            if now - last_fetch_at >= device.FETCH_INTERVAL_S:
-                try:
+                if now - last_fetch_at >= device.FETCH_INTERVAL_S:
                     do_fetch_all()
-                except Exception:
-                    pass
-                last_fetch_at = now
+                    last_fetch_at = now
 
-            display_text = get_display_text_for_mode(current_mode)
-            base_s = int(device.BASE_MODE_DURATIONS_S.get(current_mode, 10))
-            dur_s = compute_mode_duration_s(
-                current_mode,
-                display_text,
-                base_s=base_s,
-                empty_message_s=device.EMPTY_MESSAGE_DURATION_S,
-            )
+                st = store.get()
+                active_mode = st.forced_mode or current_mode
 
-            store.update(current_mode=current_mode, current_mode_duration_s=dur_s)
+                display_text = get_display_text_for_mode(active_mode)
+                base_s = int(device.BASE_MODE_DURATIONS_S.get(active_mode, 10))
+                dur_s = compute_mode_duration_s(
+                    active_mode,
+                    display_text,
+                    base_s=base_s,
+                    empty_message_s=device.EMPTY_MESSAGE_DURATION_S,
+                )
 
-            if now - mode_started_at >= dur_s:
-                current_mode = next_mode(current_mode)
-                mode_started_at = now
+                store.update(current_mode=active_mode, current_mode_duration_s=dur_s)
+
+                if not st.rotation_paused:
+                    if now - mode_started_at >= dur_s:
+                        if st.forced_mode:
+                            mode_started_at = now
+                        else:
+                            current_mode = next_mode(current_mode)
+                            mode_started_at = now
+
+            except Exception as e:
+                store.update(last_error=f"loop: {type(e).__name__}: {e}")
 
             time.sleep(0.25)
 

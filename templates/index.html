@@ -104,7 +104,9 @@ async function refresh() {
     'mode=' + s.current_mode +
     ' | mode_duration=' + s.current_mode_duration_s + 's' +
     ' | clock=' + s.time_text +
-    ' | updated=' + new Date(s._server_time_unix*1000).toLocaleTimeString();
+    ' | updated=' + new Date(s._server_time_unix*1000).toLocaleTimeString()
+    + (s.last_error ? ' | error=' + s.last_error : '')
+    + (s.forced_mode ? ' | forced_mode=' + s.forced_mode : '');
 
   const modes = [
     ['weather', s.weather],
