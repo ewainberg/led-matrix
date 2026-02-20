@@ -3,7 +3,6 @@ from __future__ import annotations
 import io
 import time
 import threading
-from typing import Optional, Tuple
 
 from PIL import Image, ImageDraw, ImageFont
 
@@ -42,11 +41,20 @@ class Renderer:
         with self._lock:
             self._latest_png = bio.getvalue()
 
-    def _text_width_px(self, s: str) -> int:
+    def _text_bbox(self, s: str) -> tuple[int, int, int, int]:
         if not s:
-            return 0
-        box = self.draw.textbbox((0, 0), s, font=self.font)
-        return int(box[2] - box[0])
+            return (0, 0, 0, 0)
+        return self.font.getbbox(s)
+
+    def _text_width_px(self, s: str) -> int:
+        l, t, r, b = self._text_bbox(s)
+        return int(r - l)
+
+    def _draw_text_top(self, x: int, y: int, s: str, fill) -> None:
+        if not s:
+            return
+        l, t, r, b = self._text_bbox(s)
+        self.draw.text((x - l, y - t), s, font=self.font, fill=fill)
 
     def _clear(self) -> None:
         self.draw.rectangle((0, 0, self.w, self.h), fill=(0, 0, 0))
@@ -60,7 +68,7 @@ class Renderer:
             (device.CLOCK_START_X_PX, 0, self.w, self.h),
             fill=(0, 0, 0),
         )
-        self.draw.text((x_clock, -1), time_text, font=self.font, fill=clock_color)
+        self._draw_text_top(x_clock, 0, time_text, clock_color)
 
     def _draw_mode_text(self, mode: str, text: str) -> None:
         colors = {
@@ -83,7 +91,7 @@ class Renderer:
             self._last_text = text
 
         if not needs_scroll:
-            self.draw.text((0, -1), text, font=self.font, fill=color)
+            self._draw_text_top(0, 0, text, color)
             return
 
         pause_s = device.SCROLL_START_PAUSE_S
@@ -94,8 +102,8 @@ class Renderer:
         cycle_px = w_text + gap_px
         x = int(-((t * speed_px_s) % cycle_px))
 
-        self.draw.text((x, -1), text, font=self.font, fill=color)
-        self.draw.text((x + cycle_px, -1), text, font=self.font, fill=color)
+        self._draw_text_top(x, 0, text, color)
+        self._draw_text_top(x + cycle_px, 0, text, color)
 
     def tick(self) -> None:
         st = self.store.get()
