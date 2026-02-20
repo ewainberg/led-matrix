@@ -4,8 +4,8 @@ import os
 import time
 import threading
 
-from config import secrets
-from config import device
+from config.secrets import secrets
+from config.device import device
 
 from utils import set_tz, clock_text, is_quiet_hours
 from state import StateStore
