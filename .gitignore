@@ -16,6 +16,7 @@ venv/
 # Environment files / secrets
 .env
 *.env
+device.py
 
 # Local overrides
 local_config.py
