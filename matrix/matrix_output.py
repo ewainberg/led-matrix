@@ -5,7 +5,7 @@ from typing import Tuple
 from rpi_ws281x import PixelStrip, Color
 
 from config import device
-from matrix_map import MatrixMap
+from matrix.matrix_map import MatrixMap
 
 
 RGB = Tuple[int, int, int]

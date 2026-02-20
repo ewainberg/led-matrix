@@ -9,7 +9,7 @@ from PIL import Image, ImageDraw, ImageFont
 
 from config import device
 from state import StateStore
-from matrix_output import MatrixOutput
+from matrix.matrix_output import MatrixOutput
 
 
 class Renderer:
