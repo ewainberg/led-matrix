@@ -28,6 +28,7 @@ class State:
     rotation_paused: bool
     forced_mode: str  # "" means no forced mode
     last_error: str
+    quiet_hours_active: bool
 
 
 def snap_ok(display_text: str, raw: Any) -> ModeSnapshot:
@@ -67,6 +68,7 @@ class StateStore:
             rotation_paused=False,
             forced_mode="",
             last_error="",
+            quiet_hours_active=True
         )
 
     def get(self) -> State:

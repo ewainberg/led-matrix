@@ -7,7 +7,7 @@ import threading
 from config import secrets
 from config import device
 
-from utils import set_tz, clock_text
+from utils import set_tz, clock_text, is_quiet_hours
 from state import StateStore
 from fetchers import Fetcher
 from layout import compute_mode_duration_s
@@ -82,6 +82,21 @@ def main() -> None:
                 now = time.time()
 
                 store.update(time_text=clock_text())
+
+                st = store.get()
+
+                # Quiet hours
+                quiet_active = False
+                if device.QUIET_HOURS_ENABLED:
+                    quiet_active = is_quiet_hours(device.OFF_START, device.ON_START)
+
+                desired_power = st.power_on
+                if device.QUIET_HOURS_ENABLED:
+                    desired_power = not quiet_active
+
+                if desired_power != st.power_on:
+                    store.update(power_on=desired_power)
+                    st = store.get()
 
                 if ctl.consume_refresh():
                     do_fetch_all()
