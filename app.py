@@ -5,7 +5,7 @@ import time
 import threading
 
 import config.secrets as secrets
-from config.device import device
+import config.device as device
 
 from utils import set_tz, clock_text, is_quiet_hours
 from state import StateStore
@@ -90,12 +90,9 @@ def main() -> None:
                 if device.QUIET_HOURS_ENABLED:
                     quiet_active = is_quiet_hours(device.OFF_START, device.ON_START)
 
-                desired_power = st.power_on
-                if device.QUIET_HOURS_ENABLED:
-                    desired_power = not quiet_active
-
-                if desired_power != st.power_on:
-                    store.update(power_on=desired_power)
+                if quiet_active != st.quiet_hours_active:
+                    store.update(quiet_hours_active=quiet_active)
+                    store.update(power_on=(not quiet_active))
                     st = store.get()
 
                 if ctl.consume_refresh():
