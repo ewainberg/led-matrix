@@ -42,6 +42,9 @@
     </select>
     <button id="applyMode">Apply</button>
     <button id="clearMode">Clear</button>
+    <button id="demoOn">Demo On</button>
+    <button id="demoOff">Demo Off</button>
+    <button id="demoNext">Next Demo</button>
   </div>
 
   <div id="meta" class="meta mono"></div>
@@ -73,6 +76,16 @@ async function postJson(url, body) {
 }
 
 async function wireControls() {
+  document.getElementById('demoOn').onclick = async () => {
+    try { await postJson('/api/engine/demo', {on:true}); await refresh(); } catch(e){ alert(e.message); }
+  };
+  document.getElementById('demoOff').onclick = async () => {
+    try { await postJson('/api/engine/demo', {on:false}); await refresh(); } catch(e){ alert(e.message); }
+  };
+  document.getElementById('demoNext').onclick = async () => {
+    try { await postJson('/api/engine/demo/next'); await refresh(); } catch(e){ alert(e.message); }
+  };
+
   document.getElementById('pwrOn').onclick = async () => {
     try { await postJson('/api/power', {on:true}); await refresh(); } catch(e){ alert(e.message); }
   };
@@ -111,7 +124,9 @@ async function refresh() {
     ' | clock=' + s.time_text +
     ' | updated=' + new Date(s._server_time_unix*1000).toLocaleTimeString()
     + (s.last_error ? ' | error=' + s.last_error : '')
-    + (s.forced_mode ? ' | forced_mode=' + s.forced_mode : '');
+    + (s.forced_mode ? ' | forced_mode=' + s.forced_mode : '')
+    + (s.engine_demo ? ' | demo=ON' : ' | demo=OFF')
+    + (typeof s.engine_demo_idx === 'number' ? ' | demo_idx=' + s.engine_demo_idx : '');
 
   const modes = [
     ['weather', s.weather],
@@ -146,7 +161,7 @@ async function refresh() {
 
 wireControls();
 refresh();
-setInterval(refresh, 2000);
+setInterval(refresh, 200);
 </script>
 </body>
 </html>

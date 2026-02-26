@@ -77,4 +77,20 @@ def create_app(store: StateStore, ctl: Control, preview_png_provider=None) -> Fl
         data = preview_png_provider() or b""
         return send_file(io.BytesIO(data), mimetype="image/png")
 
+    @app.post("/api/engine/demo")
+    def api_engine_demo():
+        data = request.get_json(silent=True) or {}
+        on = data.get("on")
+        if not isinstance(on, bool):
+            return jsonify({"ok": False, "error": "Expected JSON: {on:true|false}"}), 400
+        store.update(engine_demo=on)
+        return jsonify({"ok": True, "engine_demo": on})
+
+    @app.post("/api/engine/demo/next")
+    def api_engine_demo_next():
+        st = store.get()
+        cur = int(getattr(st, "engine_demo_idx", 0))
+        store.update(engine_demo_idx=cur + 1)
+        return jsonify({"ok": True, "engine_demo_idx": cur + 1})
+
     return app
