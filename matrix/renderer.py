@@ -10,7 +10,11 @@ from config import device
 from state import StateStore
 from matrix.matrix_output import MatrixOutput
 from matrix.ctx import RenderContext
-from matrix.scene_builder import build_scene
+from matrix.scene_builder import (
+    build_scene,
+    Presentation,
+    make_bread_alert_presentation,
+)
 
 
 class Renderer:
@@ -63,11 +67,19 @@ class Renderer:
 
         engine_demo = bool(getattr(st, "engine_demo", False))
         engine_demo_idx = int(getattr(st, "engine_demo_idx", 0) or 0)
-
         alert = engine_demo
 
+        presentation = getattr(st, "override_presentation", None)
+
+        if presentation is None and getattr(st, "bread_alert", False):
+            presentation = make_bread_alert_presentation()
+
+        scroll_mode = presentation.mode if presentation else mode
+        scroll_text = presentation.display_text if presentation else display_text
+        scroll_alert = alert or (presentation is not None)
+
         now = time.time()
-        key = (mode, display_text, alert, engine_demo_idx)
+        key = (scroll_mode, scroll_text, scroll_alert, engine_demo_idx)
         if key != self._last_scroll_key:
             self._last_scroll_key = key
             self._scroll_started_at = now
@@ -87,6 +99,7 @@ class Renderer:
             display_text=display_text,
             time_text=time_text,
             alert=alert,
+            presentation=presentation,
             engine_demo_idx=engine_demo_idx,
             font=self.font,
             small_font=self.small_font,

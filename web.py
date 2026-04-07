@@ -22,7 +22,6 @@ def create_app(store: StateStore, ctl: Control, preview_png_provider=None) -> Fl
         d = store.as_dict()
         d["_server_time_unix"] = time.time()
 
-        # Attach scroll info per mode snapshot for debugging
         for mode in ("weather", "bus", "excuse", "message"):
             snap = getattr(st, mode, None)
             if snap is None:
@@ -35,6 +34,8 @@ def create_app(store: StateStore, ctl: Control, preview_png_provider=None) -> Fl
                 "cycle_time_s": plan.cycle_time_s,
                 "total_time_s": plan.total_time_s,
             }
+
+        d["bread_alert"] = bool(getattr(st, "bread_alert", False))
 
         return jsonify(d)
 
@@ -64,12 +65,22 @@ def create_app(store: StateStore, ctl: Control, preview_png_provider=None) -> Fl
             return jsonify({"ok": False, "error": "Invalid mode"}), 400
         store.update(forced_mode=mode, mode_changed_at=time.time())
         return jsonify({"ok": True, "mode": mode})
-    
+
+    @app.post("/api/bread_alert")
+    def api_bread_alert():
+        data = request.get_json(silent=True) or {}
+        on = data.get("on")
+        if not isinstance(on, bool):
+            return jsonify({"ok": False, "error": "Expected JSON: {on: true|false}"}), 400
+
+        store.update(bread_alert=on, bread_alert_changed_at=time.time())
+        return jsonify({"ok": True, "bread_alert": on})
+
     @app.post("/api/refresh")
     def api_refresh():
         ctl.request_refresh()
         return jsonify({"ok": True, "queued": True})
-    
+
     @app.get("/preview.png")
     def preview_png():
         if not preview_png_provider:

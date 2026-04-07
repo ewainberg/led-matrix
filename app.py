@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import re
 import time
 import threading
 
@@ -14,14 +15,28 @@ from layout import compute_mode_duration_s
 from web import create_app
 from control import Control
 from matrix.renderer import Renderer
+from matrix.scene_builder import make_bus_takeover_presentation
 
 
 MODE_ORDER = ["weather", "bus", "excuse", "message"]
+BUS_INTERRUPT_THRESHOLD_MIN = 2
 
 
 def next_mode(mode: str) -> str:
     i = MODE_ORDER.index(mode)
     return MODE_ORDER[(i + 1) % len(MODE_ORDER)]
+
+
+def parse_bus_eta_minutes(display_text: str) -> int | None:
+    s = (display_text or "").strip().lower()
+    if not s:
+        return None
+
+    matches = re.findall(r"(\d+)\s*m\b", s)
+    if not matches:
+        return None
+
+    return min(int(x) for x in matches)
 
 
 def main() -> None:
@@ -75,6 +90,7 @@ def main() -> None:
         )
 
     ctl = Control()
+
     def background_loop() -> None:
         nonlocal current_mode, mode_started_at, last_fetch_at
         while True:
@@ -85,7 +101,6 @@ def main() -> None:
 
                 st = store.get()
 
-                # Quiet hours
                 quiet_active = False
                 if device.QUIET_HOURS_ENABLED:
                     quiet_active = is_quiet_hours(device.OFF_START, device.ON_START)
@@ -107,6 +122,17 @@ def main() -> None:
                 active_mode = st.forced_mode or current_mode
 
                 display_text = get_display_text_for_mode(active_mode)
+
+                bus_text = get_display_text_for_mode("bus")
+                bus_eta_min = parse_bus_eta_minutes(bus_text)
+
+                if bus_eta_min is not None and bus_eta_min <= BUS_INTERRUPT_THRESHOLD_MIN:
+                    store.update(
+                        override_presentation=make_bus_takeover_presentation(bus_text)
+                    )
+                else:
+                    store.update(override_presentation=None)
+
                 base_s = int(device.BASE_MODE_DURATIONS_S.get(active_mode, 10))
                 dur_s = compute_mode_duration_s(
                     active_mode,

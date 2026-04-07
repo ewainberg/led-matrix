@@ -1,22 +1,190 @@
 from __future__ import annotations
 
-from PIL import ImageFont
+from dataclasses import dataclass
+from typing import Literal, Optional
+
+from PIL import Image, ImageFont
 
 from config import device
-from matrix.ctx import Viewport
+from matrix.ctx import RGB, Viewport
 from matrix.pipeline import DrawUnit
 from matrix.primitives.frame import FramePrimitive
 from matrix.primitives.text import TextPrimitive
-from matrix.primitives.arrows import ArrowPrimitive
+from matrix.primitives.spritesheet import SpriteSheetPrimitive
+from matrix.primitives.sprite_scroll import VerticalSpriteScroller
 from matrix.effects.dash import Dash
-from matrix.effects.local_wrap import LocalWrapShift
+
+PresentationKind = Literal["normal", "emphasis", "takeover", "alert", "bread_alert"]
+
+
+@dataclass(slots=True)
+class Presentation:
+    kind: PresentationKind = "normal"
+    mode: str = "message"
+    display_text: str = ""
+    time_text: str = ""
+
+    show_clock: bool = True
+    frame: bool = False
+    full_width: bool = False
+    use_small_font: bool = False
+
+    color: tuple[int, int, int] | None = None
+    frame_color: tuple[int, int, int] = (0, 255, 0)
+
+    arrows: bool = False
+    arrow_color: tuple[int, int, int] = (0, 255, 0)
+    arrow_x: int | None = None
+    arrow_y: int = 0
+
+    sprite_path: str | None = None
+    sprite_frame_width: int | None = None
+    sprite_frame_height: int | None = None
+    sprite_x: int = 0
+    sprite_y: int = 0
+    sprite_fps: float = 0.0
+    sprite_color: tuple[int, int, int] | None = None
+
+    text_inset_left: int = 0
+    text_inset_right: int = 0
+    center_text: bool = False
+    text_y_offset: int = 0
+
 
 MODE_COLORS = {
     "weather": (0, 150, 255),
     "bus": (255, 180, 0),
     "excuse": (255, 100, 255),
     "message": (255, 255, 0),
+    "bread": (255, 0, 0),
 }
+
+BUS_COLOR = MODE_COLORS["bus"]
+BUS_TAKEOVER_SPRITE_PATH = "/home/maxpower/ledmatrix/assets/bus.png"
+BUS_TAKEOVER_SPRITE_FRAME_W = 12
+BUS_TAKEOVER_SPRITE_FRAME_H = 6
+BUS_TAKEOVER_SPRITE_FPS = 10.0
+
+BREAD_COLOR = (255, 0, 0)
+BREAD_ALERT_SPRITE_PATH = "/home/maxpower/ledmatrix/assets/bread.png"
+
+
+def load_sprite_from_png(path: str, repeat: int = 4) -> list[list[Optional[RGB]]]:
+    img = Image.open(path).convert("RGBA")
+    px = img.load()
+    w, h = img.size
+
+    pixels: list[list[Optional[RGB]]] = []
+
+    for _ in range(max(1, repeat)):
+        for y in range(h):
+            row: list[Optional[RGB]] = []
+            for x in range(w):
+                r, g, b, a = px[x, y]
+                if a == 0:
+                    row.append(None)
+                else:
+                    row.append((r, g, b))
+            pixels.append(row)
+
+    return pixels
+
+
+def resolve_legacy_presentation(
+    *,
+    mode: str,
+    display_text: str,
+    time_text: str,
+    alert: bool,
+) -> Presentation:
+    color = MODE_COLORS.get(mode, (255, 255, 255))
+
+    if alert:
+        return Presentation(
+            kind="alert",
+            mode=mode,
+            display_text=display_text,
+            time_text=time_text,
+            show_clock=False,
+            frame=True,
+            full_width=True,
+            use_small_font=True,
+            color=color,
+            frame_color=(0, 255, 0),
+            arrows=True,
+            arrow_color=(0, 255, 0),
+        )
+
+    return Presentation(
+        kind="normal",
+        mode=mode,
+        display_text=display_text,
+        time_text=time_text,
+        show_clock=True,
+        frame=False,
+        full_width=False,
+        use_small_font=False,
+        color=color,
+    )
+
+
+def make_bus_takeover_presentation(display_text: str) -> Presentation:
+    text = (display_text or "").strip()
+
+    if text.lower().startswith("bus:"):
+        suffix = text[4:].strip()
+    else:
+        suffix = text
+
+    inbound_text = f"BUS INBOUND: {suffix}" if suffix else "BUS INBOUND"
+
+    sprite_x = 2
+    sprite_y = 1
+
+    left_inset = sprite_x + BUS_TAKEOVER_SPRITE_FRAME_W + 1
+    right_inset = 1
+
+    return Presentation(
+        kind="takeover",
+        mode="bus",
+        display_text=inbound_text,
+        time_text="",
+        show_clock=False,
+        frame=True,
+        full_width=True,
+        use_small_font=True,
+        center_text=True,
+        text_y_offset=0,
+        color=BUS_COLOR,
+        frame_color=BUS_COLOR,
+        arrows=False,
+        sprite_path=BUS_TAKEOVER_SPRITE_PATH,
+        sprite_frame_width=BUS_TAKEOVER_SPRITE_FRAME_W,
+        sprite_frame_height=BUS_TAKEOVER_SPRITE_FRAME_H,
+        sprite_x=sprite_x,
+        sprite_y=sprite_y,
+        sprite_fps=BUS_TAKEOVER_SPRITE_FPS,
+        sprite_color=BUS_COLOR,
+        text_inset_left=left_inset,
+        text_inset_right=right_inset,
+    )
+
+
+def make_bread_alert_presentation() -> Presentation:
+    return Presentation(
+        kind="bread_alert",
+        mode="bread",
+        display_text="BREAD ALERT",
+        time_text="",
+        show_clock=False,
+        frame=False,
+        full_width=True,
+        use_small_font=True,
+        center_text=True,
+        color=BREAD_COLOR,
+        frame_color=BREAD_COLOR,
+        arrows=False,
+    )
 
 
 def build_scene(
@@ -32,28 +200,102 @@ def build_scene(
     screen_h: int,
     text_w: int,
     engine_demo_idx: int = 0,
+    presentation: Presentation | None = None,
     **_,
 ) -> list[DrawUnit]:
-    # Alert = no clock area, full width usable.
-    if alert:
+    pres = presentation or resolve_legacy_presentation(
+        mode=mode,
+        display_text=display_text,
+        time_text=time_text,
+        alert=alert,
+    )
+
+    if pres.kind == "bread_alert":
+        use_font = small_font if small_font is not None else font
+        bread_pixels = load_sprite_from_png(BREAD_ALERT_SPRITE_PATH, repeat=6)
+
+        one_screen_w = max(1, screen_w // 5)
+        left_w = one_screen_w
+        middle_x = left_w
+        middle_w = max(1, one_screen_w * 3)
+        right_x = left_w + middle_w
+        right_w = max(1, screen_w - right_x)
+
+        vp_left = Viewport(0, 0, left_w, screen_h)
+        vp_middle = Viewport(middle_x, 0, middle_w, screen_h)
+        vp_right = Viewport(right_x, 0, right_w, screen_h)
+
+        frame_pad = 1
+        vp_middle_text = Viewport(
+            vp_middle.x + frame_pad,
+            vp_middle.y + frame_pad,
+            max(1, vp_middle.w - 2 * frame_pad),
+            max(1, vp_middle.h - 2 * frame_pad),
+        )
+
+        return [
+            DrawUnit(
+                vp=vp_left,
+                prim=VerticalSpriteScroller(
+                    pixels=bread_pixels,
+                    speed_px_s=10.0,
+                    pause_s=0.0,
+                    loop="wrap",
+                ),
+                effects=[],
+            ),
+            DrawUnit(
+                vp=vp_right,
+                prim=VerticalSpriteScroller(
+                    pixels=bread_pixels,
+                    speed_px_s=10.0,
+                    pause_s=0.0,
+                    loop="wrap",
+                ),
+                effects=[],
+            ),
+            DrawUnit(
+                vp=vp_middle,
+                prim=FramePrimitive(color=BREAD_COLOR, thickness=1),
+                effects=[Dash(dash_len=2, gap_len=2, speed_px_s=20.0)],
+            ),
+            DrawUnit(
+                vp=vp_middle_text,
+                prim=TextPrimitive(
+                    text="BREAD ALERT",
+                    font=use_font,
+                    color=BREAD_COLOR,
+                    mode="static",
+                    y_align="center",
+                    x_align="center",
+                ),
+                effects=[],
+            ),
+        ]
+
+    color = pres.color or MODE_COLORS.get(pres.mode, (255, 255, 255))
+    use_font = small_font if (pres.use_small_font and small_font is not None) else font
+
+    if pres.full_width or not pres.show_clock:
         vp_text_outer = Viewport(0, 0, screen_w, screen_h)
     else:
         vp_text_outer = Viewport(0, 0, text_w, screen_h)
 
+    frame_pad = 1 if pres.frame else 0
+
+    inner_x = vp_text_outer.x + frame_pad + pres.text_inset_left
+    inner_y = vp_text_outer.y + frame_pad
+    inner_w = max(1, vp_text_outer.w - (2 * frame_pad) - pres.text_inset_left - pres.text_inset_right)
+    inner_h = max(1, vp_text_outer.h - (2 * frame_pad))
+
+    vp_text = Viewport(inner_x, inner_y + pres.text_y_offset, inner_w, inner_h)
+
     units: list[DrawUnit] = []
-    color = MODE_COLORS.get(mode, (255, 255, 255))
-    use_font = small_font if (alert and small_font is not None) else font
-    
 
-    # If alert and you want a 1px frame, shrink inner text viewport
-    if alert:
-        vp_text = Viewport(vp_text_outer.x + 1, vp_text_outer.y + 1, vp_text_outer.w - 2, vp_text_outer.h - 2)
-    else:
-        vp_text = vp_text_outer
+    x_align = "center" if pres.center_text else "left"
 
-    # Text (scroll only if needed)
     text_kwargs = dict(
-        text=display_text,
+        text=pres.display_text,
         font=use_font,
         color=color,
         mode="auto",
@@ -61,20 +303,31 @@ def build_scene(
         gap_px=device.SCROLL_GAP_PX,
         speed_px_s=device.SCROLL_SPEED_PX_S,
         y_align="center",
+        x_align=x_align,
     )
     if scroll_started_at is not None:
         text_kwargs["scroll_started_at"] = scroll_started_at
 
-    units.append(DrawUnit(vp=vp_text, prim=TextPrimitive(**text_kwargs), effects=[]))
+    units.append(
+        DrawUnit(
+            vp=vp_text,
+            prim=TextPrimitive(**text_kwargs),
+            effects=[],
+        )
+    )
 
-    # Normal mode clock
-    if not alert:
-        vp_clock = Viewport(device.CLOCK_START_X_PX, 0, screen_w - device.CLOCK_START_X_PX, screen_h)
+    if pres.show_clock:
+        vp_clock = Viewport(
+            device.CLOCK_START_X_PX,
+            0,
+            screen_w - device.CLOCK_START_X_PX,
+            screen_h,
+        )
         units.append(
             DrawUnit(
                 vp=vp_clock,
                 prim=TextPrimitive(
-                    text=time_text,
+                    text=pres.time_text,
                     font=font,
                     color=(0, 255, 100),
                     mode="static",
@@ -85,49 +338,52 @@ def build_scene(
             )
         )
 
-    # Alert extras
-    if alert:
-        # Frame around whole screen
+    if pres.frame:
         units.append(
             DrawUnit(
                 vp=vp_text_outer,
-                prim=FramePrimitive(color=(60, 60, 60), thickness=1),
-                effects=[Dash(dash_len=2, gap_len=2, speed_px_s=14.0)],
+                prim=FramePrimitive(color=pres.frame_color, thickness=1),
+                effects=[Dash(dash_len=2, gap_len=2, speed_px_s=5.0)],
             )
         )
 
-        # Demo arrows: place anywhere inside vp_text_outer (not tied to clock)
-        # engine_demo_idx can cycle layouts
+    if (
+        pres.sprite_path
+        and pres.sprite_frame_width is not None
+        and pres.sprite_frame_height is not None
+    ):
+        units.append(
+            DrawUnit(
+                vp=vp_text_outer,
+                prim=SpriteSheetPrimitive(
+                    path=pres.sprite_path,
+                    frame_width=pres.sprite_frame_width,
+                    frame_height=pres.sprite_frame_height,
+                    x=pres.sprite_x,
+                    y=pres.sprite_y,
+                    fps=pres.sprite_fps,
+                    black_replacement=pres.sprite_color,
+                ),
+                effects=[],
+            )
+        )
+
+    if pres.arrows:
         i = engine_demo_idx % 3
         if i == 0:
-            # Left edge "UP" arrows
-            units.append(DrawUnit(vp=vp_text_outer, prim=ArrowPrimitive("up", (0, 255, 0), x=1, y=1), effects=[]))
-            units.append(DrawUnit(vp=vp_text_outer, prim=ArrowPrimitive("up", (0, 255, 0), x=1, y=screen_h - 6), effects=[]))
-        elif i == 1:
-            # Right edge "RIGHT" arrow
+            arrow_x = pres.arrow_x if pres.arrow_x is not None else max(0, vp_text_outer.w - 8)
             units.append(
                 DrawUnit(
                     vp=vp_text_outer,
-                    prim=ArrowPrimitive("right", (0, 255, 0), x=vp_text_outer.w - 6, y=(screen_h - 5) // 2),
-                    effects=[],
-                )
-            )
-            units.append(
-                DrawUnit(
-                    vp=vp_text_outer,  # or any viewport you want
-                    prim=ArrowPrimitive(direction="up", color=(0, 255, 0), x=10, y=1),
-                    effects=[
-                        # Wrap inside the arrow’s own 5x5 box so it “moves” but stays put
-                        LocalWrapShift(axis="y", w=5, h=5, speed_px_s=6.0, direction=-1, origin_x=10, origin_y=1)
-                    ],
-                )
-            )
-        else:
-            # Bottom-left "LEFT" arrow
-            units.append(
-                DrawUnit(
-                    vp=vp_text_outer,
-                    prim=ArrowPrimitive("left", (0, 255, 0), x=1, y=screen_h - 6),
+                    prim=SpriteSheetPrimitive(
+                        path="/home/maxpower/ledmatrix/assets/arrow.png",
+                        frame_width=8,
+                        frame_height=6,
+                        x=arrow_x,
+                        y=pres.arrow_y,
+                        fps=6.0,
+                        black_replacement=pres.arrow_color,
+                    ),
                     effects=[],
                 )
             )
