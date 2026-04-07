@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Literal, Optional
 
 from PIL import Image, ImageFont
@@ -10,9 +11,11 @@ from matrix.ctx import RGB, Viewport
 from matrix.pipeline import DrawUnit
 from matrix.primitives.frame import FramePrimitive
 from matrix.primitives.text import TextPrimitive
+from matrix.primitives.sprite import SpritePrimitive
 from matrix.primitives.spritesheet import SpriteSheetPrimitive
 from matrix.primitives.sprite_scroll import VerticalSpriteScroller
 from matrix.effects.dash import Dash
+from matrix.weather_icons import get_weather_icon_path
 
 PresentationKind = Literal["normal", "emphasis", "takeover", "alert", "bread_alert"]
 
@@ -67,6 +70,10 @@ BUS_TAKEOVER_SPRITE_FPS = 10.0
 
 BREAD_COLOR = (255, 0, 0)
 BREAD_ALERT_SPRITE_PATH = "/home/maxpower/ledmatrix/assets/bread.png"
+
+WEATHER_ICON_W = 12
+WEATHER_ICON_H = 8
+WEATHER_TEXT_GAP = 1
 
 
 def load_sprite_from_png(path: str, repeat: int = 4) -> list[list[Optional[RGB]]]:
@@ -283,9 +290,24 @@ def build_scene(
 
     frame_pad = 1 if pres.frame else 0
 
+    extra_right_inset = 0
+    weather_icon_path = None
+
+    if pres.mode == "weather":
+        weather_icon_path = get_weather_icon_path(pres.display_text)
+        if weather_icon_path:
+            extra_right_inset = WEATHER_ICON_W + WEATHER_TEXT_GAP
+
     inner_x = vp_text_outer.x + frame_pad + pres.text_inset_left
     inner_y = vp_text_outer.y + frame_pad
-    inner_w = max(1, vp_text_outer.w - (2 * frame_pad) - pres.text_inset_left - pres.text_inset_right)
+    inner_w = max(
+        1,
+        vp_text_outer.w
+        - (2 * frame_pad)
+        - pres.text_inset_left
+        - pres.text_inset_right
+        - extra_right_inset,
+    )
     inner_h = max(1, vp_text_outer.h - (2 * frame_pad))
 
     vp_text = Viewport(inner_x, inner_y + pres.text_y_offset, inner_w, inner_h)
@@ -293,6 +315,22 @@ def build_scene(
     units: list[DrawUnit] = []
 
     x_align = "center" if pres.center_text else "left"
+
+    if weather_icon_path:
+        icon_x = vp_text_outer.w - WEATHER_ICON_W
+        icon_y = max(0, (vp_text_outer.h - WEATHER_ICON_H) // 2)
+        weather_pixels = load_sprite_from_png(weather_icon_path, repeat=1)
+        units.append(
+                    DrawUnit(
+                        vp=Viewport(0, 0, screen_w, screen_h),
+                        prim=SpritePrimitive(
+                            pixels=weather_pixels,
+                            x=icon_x,
+                            y=icon_y,
+                        ),
+                        effects=[],
+                    )
+                )
 
     text_kwargs = dict(
         text=pres.display_text,
