@@ -16,6 +16,7 @@ from matrix.scene_builder import (
     make_bread_alert_presentation,
     make_snake_alert_presentation,
 )
+from matrix.tetris_scene import render_tetris
 
 
 class Renderer:
@@ -60,6 +61,26 @@ class Renderer:
             self._clear()
             self._save_preview()
             return
+
+        # ------------------------------------------------------------------
+        # Tetris mode — takes full control, nothing else runs
+        # ------------------------------------------------------------------
+        tetris_game = getattr(st, "tetris_game", None)
+        if tetris_game is not None:
+            self._clear()
+            now = time.time()
+            ctx = RenderContext(
+                img=self.img,
+                draw=self.draw,
+                t=now,
+                screen_w=self.w,
+                screen_h=self.h,
+            )
+            render_tetris(tetris_game, ctx)
+            self.out.show_frame(self.img)
+            self._save_preview()
+            return
+        # ------------------------------------------------------------------
 
         mode = st.current_mode
         time_text = st.time_text or ""
