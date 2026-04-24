@@ -63,7 +63,7 @@ def create_app(store: StateStore, ctl: Control, preview_png_provider=None) -> Fl
         mode = data.get("mode", "")
         if mode not in ("weather", "bus", "excuse", "message", ""):
             return jsonify({"ok": False, "error": "Invalid mode"}), 400
-        store.update(forced_mode=mode, mode_changed_at=time.time())
+        store.update(forced_mode=mode)
         return jsonify({"ok": True, "mode": mode})
 
     @app.post("/api/bread_alert")

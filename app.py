@@ -55,8 +55,8 @@ def main() -> None:
         while True:
             try:
                 renderer.tick()
-            except Exception:
-                pass
+            except Exception as e:
+                store.update(last_error=f"render: {type(e).__name__}: {e}")
             time.sleep(dt)
 
     threading.Thread(target=render_loop, daemon=True).start()

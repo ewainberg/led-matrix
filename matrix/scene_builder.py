@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import functools
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal, Optional
 
 from PIL import Image, ImageFont
+
+ASSETS_DIR = Path(__file__).resolve().parent.parent / "assets"
 
 from config import device
 from matrix.ctx import RGB, Viewport
@@ -63,19 +66,20 @@ MODE_COLORS = {
 }
 
 BUS_COLOR = MODE_COLORS["bus"]
-BUS_TAKEOVER_SPRITE_PATH = "/home/maxpower/ledmatrix/assets/bus.png"
+BUS_TAKEOVER_SPRITE_PATH = str(ASSETS_DIR / "bus.png")
 BUS_TAKEOVER_SPRITE_FRAME_W = 12
 BUS_TAKEOVER_SPRITE_FRAME_H = 6
 BUS_TAKEOVER_SPRITE_FPS = 10.0
 
 BREAD_COLOR = (255, 0, 0)
-BREAD_ALERT_SPRITE_PATH = "/home/maxpower/ledmatrix/assets/bread.png"
+BREAD_ALERT_SPRITE_PATH = str(ASSETS_DIR / "bread.png")
 
 WEATHER_ICON_W = 12
 WEATHER_ICON_H = 8
 WEATHER_TEXT_GAP = 1
 
 
+@functools.lru_cache(maxsize=32)
 def load_sprite_from_png(path: str, repeat: int = 4) -> list[list[Optional[RGB]]]:
     img = Image.open(path).convert("RGBA")
     px = img.load()
@@ -414,7 +418,7 @@ def build_scene(
                 DrawUnit(
                     vp=vp_text_outer,
                     prim=SpriteSheetPrimitive(
-                        path="/home/maxpower/ledmatrix/assets/arrow.png",
+                        path=str(ASSETS_DIR / "arrow.png"),
                         frame_width=8,
                         frame_height=6,
                         x=arrow_x,

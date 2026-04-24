@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-WEATHER_ICON_DIR = Path("/home/maxpower/ledmatrix/assets/weather")
+WEATHER_ICON_DIR = Path(__file__).resolve().parent.parent / "assets" / "weather"
 
 
 def normalize_weather_condition(display_text: str) -> str:

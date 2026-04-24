@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import time
 import threading
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass, asdict, replace
 from typing import Any, Optional
 
 
@@ -72,7 +72,7 @@ class StateStore:
             rotation_paused=False,
             forced_mode="",
             last_error="",
-            quiet_hours_active=True,
+            quiet_hours_active=False,
             engine_demo=False,
             engine_demo_idx=0,
             bread_alert=False,
@@ -81,7 +81,7 @@ class StateStore:
 
     def get(self) -> State:
         with self._lock:
-            return self._state
+            return replace(self._state)
 
     def update(self, **kwargs) -> None:
         with self._lock:
