@@ -33,6 +33,8 @@ class State:
     engine_demo_idx: int
     bread_alert: bool
     bread_alert_changed_at: float
+    snake_alert: bool
+    snake_alert_changed_at: float
 
 
 def snap_ok(display_text: str, raw: Any) -> ModeSnapshot:
@@ -77,6 +79,8 @@ class StateStore:
             engine_demo_idx=0,
             bread_alert=False,
             bread_alert_changed_at=0.0,
+            snake_alert=False,
+            snake_alert_changed_at=0.0,
         )
 
     def get(self) -> State:

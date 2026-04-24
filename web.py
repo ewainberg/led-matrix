@@ -36,6 +36,7 @@ def create_app(store: StateStore, ctl: Control, preview_png_provider=None) -> Fl
             }
 
         d["bread_alert"] = bool(getattr(st, "bread_alert", False))
+        d["snake_alert"] = bool(getattr(st, "snake_alert", False))
 
         return jsonify(d)
 
@@ -75,6 +76,16 @@ def create_app(store: StateStore, ctl: Control, preview_png_provider=None) -> Fl
 
         store.update(bread_alert=on, bread_alert_changed_at=time.time())
         return jsonify({"ok": True, "bread_alert": on})
+    
+    @app.post("/api/snake_alert")
+    def api_snake_alert():
+        data = request.get_json(silent=True) or {}
+        on = data.get("on")
+        if not isinstance(on, bool):
+            return jsonify({"ok": False, "error": "Expected JSON: {on: true|false}"}), 400
+
+        store.update(snake_alert=on, snake_alert_changed_at=time.time())
+        return jsonify({"ok": True, "snake_alert": on})
 
     @app.post("/api/refresh")
     def api_refresh():

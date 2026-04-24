@@ -14,6 +14,7 @@ from matrix.scene_builder import (
     build_scene,
     Presentation,
     make_bread_alert_presentation,
+    make_snake_alert_presentation,
 )
 
 
@@ -71,8 +72,11 @@ class Renderer:
 
         presentation = getattr(st, "override_presentation", None)
 
-        if presentation is None and getattr(st, "bread_alert", False):
-            presentation = make_bread_alert_presentation()
+        if presentation is None:
+            if getattr(st, "snake_alert", False):
+                presentation = make_snake_alert_presentation()
+            elif getattr(st, "bread_alert", False):
+                presentation = make_bread_alert_presentation()
 
         scroll_mode = presentation.mode if presentation else mode
         scroll_text = presentation.display_text if presentation else display_text

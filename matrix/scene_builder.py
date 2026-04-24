@@ -20,8 +20,7 @@ from matrix.primitives.sprite_scroll import VerticalSpriteScroller
 from matrix.effects.dash import Dash
 from matrix.weather_icons import get_weather_icon_path
 
-PresentationKind = Literal["normal", "emphasis", "takeover", "alert", "bread_alert"]
-
+PresentationKind = Literal["normal", "emphasis", "takeover", "alert", "bread_alert", "snake_alert"]
 
 @dataclass(slots=True)
 class Presentation:
@@ -73,6 +72,12 @@ BUS_TAKEOVER_SPRITE_FPS = 10.0
 
 BREAD_COLOR = (255, 0, 0)
 BREAD_ALERT_SPRITE_PATH = str(ASSETS_DIR / "bread.png")
+
+SNAKE_COLOR = (0, 255, 0)
+SNAKE_ALERT_SPRITE_PATH = "/home/maxpower/ledmatrix/assets/snake.png"
+SNAKE_ALERT_FRAME_W = 12
+SNAKE_ALERT_FRAME_H = 8
+SNAKE_ALERT_FPS = 12.0
 
 WEATHER_ICON_W = 12
 WEATHER_ICON_H = 8
@@ -197,6 +202,22 @@ def make_bread_alert_presentation() -> Presentation:
         arrows=False,
     )
 
+def make_snake_alert_presentation() -> Presentation:
+    return Presentation(
+        kind="snake_alert",
+        mode="message",
+        display_text="SNAKE ALERT",
+        time_text="",
+        show_clock=False,
+        frame=False,
+        full_width=True,
+        use_small_font=True,
+        center_text=True,
+        color=SNAKE_COLOR,
+        frame_color=SNAKE_COLOR,
+        arrows=False,
+    )
+
 
 def build_scene(
     *,
@@ -220,6 +241,80 @@ def build_scene(
         time_text=time_text,
         alert=alert,
     )
+
+    if pres.kind == "snake_alert":
+        use_font = small_font if small_font is not None else font
+
+        one_screen_w = max(1, screen_w // 5)
+        left_w = one_screen_w
+        middle_x = left_w
+        middle_w = max(1, one_screen_w * 3)
+        right_x = left_w + middle_w
+        right_w = max(1, screen_w - right_x)
+
+        vp_left = Viewport(0, 0, left_w, screen_h)
+        vp_middle = Viewport(middle_x, 0, middle_w, screen_h)
+        vp_right = Viewport(right_x, 0, right_w, screen_h)
+
+        frame_pad = 1
+        vp_middle_text = Viewport(
+            vp_middle.x + frame_pad,
+            vp_middle.y + frame_pad,
+            max(1, vp_middle.w - 2 * frame_pad),
+            max(1, vp_middle.h - 2 * frame_pad),
+        )
+
+        left_sprite_x = max(0, (vp_left.w - SNAKE_ALERT_FRAME_W) // 2)
+        left_sprite_y = max(0, (vp_left.h - SNAKE_ALERT_FRAME_H) // 2)
+
+        right_sprite_x = max(0, (vp_right.w - SNAKE_ALERT_FRAME_W) // 2)
+        right_sprite_y = max(0, (vp_right.h - SNAKE_ALERT_FRAME_H) // 2)
+
+        return [
+            DrawUnit(
+                vp=vp_left,
+                prim=SpriteSheetPrimitive(
+                    path=SNAKE_ALERT_SPRITE_PATH,
+                    frame_width=SNAKE_ALERT_FRAME_W,
+                    frame_height=SNAKE_ALERT_FRAME_H,
+                    x=left_sprite_x,
+                    y=left_sprite_y,
+                    fps=SNAKE_ALERT_FPS,
+                    black_replacement=None,
+                ),
+                effects=[],
+            ),
+            DrawUnit(
+                vp=vp_right,
+                prim=SpriteSheetPrimitive(
+                    path=SNAKE_ALERT_SPRITE_PATH,
+                    frame_width=SNAKE_ALERT_FRAME_W,
+                    frame_height=SNAKE_ALERT_FRAME_H,
+                    x=right_sprite_x,
+                    y=right_sprite_y,
+                    fps=SNAKE_ALERT_FPS,
+                    black_replacement=None,
+                ),
+                effects=[],
+            ),
+            DrawUnit(
+                vp=vp_middle,
+                prim=FramePrimitive(color=SNAKE_COLOR, thickness=1),
+                effects=[Dash(dash_len=2, gap_len=2, speed_px_s=20.0)],
+            ),
+            DrawUnit(
+                vp=vp_middle_text,
+                prim=TextPrimitive(
+                    text="SNAKE ALERT",
+                    font=use_font,
+                    color=SNAKE_COLOR,
+                    mode="static",
+                    y_align="center",
+                    x_align="center",
+                ),
+                effects=[],
+            ),
+        ]
 
     if pres.kind == "bread_alert":
         use_font = small_font if small_font is not None else font
