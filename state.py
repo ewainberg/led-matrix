@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import time
 import threading
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass, asdict, replace
 from typing import Any, Optional
 
 
@@ -33,6 +33,8 @@ class State:
     engine_demo_idx: int
     bread_alert: bool
     bread_alert_changed_at: float
+    snake_alert: bool
+    snake_alert_changed_at: float
 
 
 def snap_ok(display_text: str, raw: Any) -> ModeSnapshot:
@@ -72,16 +74,18 @@ class StateStore:
             rotation_paused=False,
             forced_mode="",
             last_error="",
-            quiet_hours_active=True,
+            quiet_hours_active=False,
             engine_demo=False,
             engine_demo_idx=0,
             bread_alert=False,
             bread_alert_changed_at=0.0,
+            snake_alert=False,
+            snake_alert_changed_at=0.0,
         )
 
     def get(self) -> State:
         with self._lock:
-            return self._state
+            return replace(self._state)
 
     def update(self, **kwargs) -> None:
         with self._lock:

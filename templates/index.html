@@ -34,6 +34,9 @@
     <button id="breadAlertOn">Bread On</button>
     <button id="breadAlertOff">Bread Off</button>
 
+    <button id="snakeAlertOn">Snake On</button>
+    <button id="snakeAlertOff">Snake Off</button>
+
     <span class="status">Mode:</span>
     <select id="modeSel">
       <option value="">(auto)</option>
@@ -80,6 +83,13 @@ async function wireControls() {
   };
   document.getElementById('breadAlertOff').onclick = async () => {
     try { await postJson('/api/bread_alert', {on:false}); await refresh(); } catch(e){ alert(e.message); }
+  };
+  
+  document.getElementById('snakeAlertOn').onclick = async () => {
+    try { await postJson('/api/snake_alert', {on:true}); await refresh(); } catch(e){ alert(e.message); }
+  };
+  document.getElementById('snakeAlertOff').onclick = async () => {
+    try { await postJson('/api/snake_alert', {on:false}); await refresh(); } catch(e){ alert(e.message); }
   };
 
   document.getElementById('pwrOn').onclick = async () => {
