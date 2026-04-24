@@ -29,7 +29,7 @@ FIELD_W = 78   # columns in each playfield
 FIELD_H = 8    # rows (= matrix height)
 
 # Gravity: seconds between automatic piece advances (one column step)
-BASE_TICK_S = 0.2
+BASE_TICK_S = 0.00001
 MIN_TICK_S  = 0.05
 SPEED_UP_PER_LINE = 0.01   # seconds shaved off per line cleared
 
@@ -320,6 +320,23 @@ class TetrisBoard:
                     self.active = nudged
                     return
 
+    def drop(self) -> None:
+        """Instantly advance the active piece to the floor and lock it."""
+        if self.active is None or self.game_over:
+            return
+        piece = self.active
+        while True:
+            advanced = piece.moved(dcol=1)
+            if self._collides(advanced):
+                break
+            piece = advanced
+        self.active = piece
+        self._lock(piece)
+        cleared = self._clear_lines()
+        self.lines_cleared += cleared
+        self.score += [0, 1, 3, 6, 10][min(cleared, 4)]
+        self._spawn_piece()
+
 
 # ---------------------------------------------------------------------------
 # TetrisGame  (two boards, shared tick rate, thread-safe action queue)
@@ -370,6 +387,8 @@ class TetrisGame:
                 board.rotate_cw()
             elif act == "rotate_ccw":
                 board.rotate_ccw()
+            elif act == "drop":
+                board.drop()
 
     # ------------------------------------------------------------------
     # Snapshot for rendering (returns copies so renderer is lock-free)

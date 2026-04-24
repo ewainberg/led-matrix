@@ -138,7 +138,7 @@ def create_app(store: StateStore, ctl: Control, preview_png_provider=None) -> Fl
         action = data.get("action", "")
         if player not in (1, 2):
             return jsonify({"ok": False, "error": "player must be 1 or 2"}), 400
-        valid_actions = ("up", "down", "rotate_cw", "rotate_ccw")
+        valid_actions = ("up", "down", "rotate_cw", "rotate_ccw", "drop")
         if action not in valid_actions:
             return jsonify({"ok": False, "error": f"action must be one of {valid_actions}"}), 400
         game = getattr(store.get(), "tetris_game", None)
@@ -167,5 +167,13 @@ def create_app(store: StateStore, ctl: Control, preview_png_provider=None) -> Fl
             },
             "tick_interval": snap["tick_interval"],
         })
+
+    @app.get("/tetris/p1")
+    def tetris_p1():
+        return render_template("tetris_p1.html")
+
+    @app.get("/tetris/p2")
+    def tetris_p2():
+        return render_template("tetris_p2.html")
 
     return app
