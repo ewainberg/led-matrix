@@ -29,9 +29,9 @@ FIELD_W = 78   # columns in each playfield
 FIELD_H = 8    # rows (= matrix height)
 
 # Gravity: seconds between automatic piece advances (one column step)
-BASE_TICK_S = 0.6
-MIN_TICK_S  = 0.15
-SPEED_UP_PER_LINE = 0.02   # seconds shaved off per line cleared
+BASE_TICK_S = 0.2
+MIN_TICK_S  = 0.05
+SPEED_UP_PER_LINE = 0.01   # seconds shaved off per line cleared
 
 # Player colours (RGB)
 P1_COLOR: tuple[int, int, int] = (0, 220, 255)    # cyan
