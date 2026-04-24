@@ -60,5 +60,7 @@ ZIGZAG = True         # NEO_MATRIX_ZIGZAG
 # -------- Render --------
 BASE_DIR = Path(__file__).resolve().parent
 FONT_PATH = BASE_DIR / "coolfont.ttf"
+SMALL_FONT_PATH = BASE_DIR / "coolfontsmall.ttf"
 RENDER_FPS = 30
 FONT_SIZE_PX = 8
+SMALL_FONT_SIZE_PX = 7

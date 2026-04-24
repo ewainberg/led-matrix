@@ -124,18 +124,20 @@ class Fetcher:
 
             msg = r.text.strip()
             if not msg or msg.lower() in ("no messages", "no message"):
-                try:
-                    requests.get(self.next_url, timeout=6)
-                except Exception:
-                    pass
+                if self.next_url:
+                    try:
+                        requests.get(self.next_url, timeout=6)
+                    except Exception:
+                        pass
                 return snap_ok("", {"message": "", "note": "empty"})
 
             msg_clean = sanitize_one_line(msg)
 
-            try:
-                requests.get(self.next_url, timeout=6)
-            except Exception:
-                pass
+            if self.next_url:
+                try:
+                    requests.get(self.next_url, timeout=6)
+                except Exception:
+                    pass
 
             return snap_ok(msg_clean, {"message": msg_clean})
 

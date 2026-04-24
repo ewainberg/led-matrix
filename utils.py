@@ -21,10 +21,13 @@ def clock_text() -> str:
     t = time.strftime("%I:%M")
     return t[1:] if t.startswith("0") else t
 
-def _parse_hhmm(s: str):
+def _parse_hhmm(s: str) -> tuple[int, int]:
     s = (s or "").strip()
-    hh, mm = s.split(":")
-    return int(hh), int(mm) 
+    try:
+        hh, mm = s.split(":")
+        return int(hh), int(mm)
+    except (ValueError, AttributeError) as exc:
+        raise ValueError(f"Invalid HH:MM time string: {s!r}") from exc
 
 def is_quiet_hours(off_start: str, on_start: str, now: datetime | None = None) -> bool:
     now = now or datetime.now()

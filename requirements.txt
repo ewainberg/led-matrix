@@ -1,5 +1,5 @@
-flask
-requests
-python-dotenv
-pillow 
-rpi_ws281x
+flask>=3.0,<4.0
+requests>=2.31,<3.0
+python-dotenv>=1.0,<2.0
+pillow>=10.0,<11.0
+rpi_ws281x>=5.0,<6.0

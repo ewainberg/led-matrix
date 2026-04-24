@@ -22,7 +22,6 @@ def create_app(store: StateStore, ctl: Control, preview_png_provider=None) -> Fl
         d = store.as_dict()
         d["_server_time_unix"] = time.time()
 
-        # Attach scroll info per mode snapshot for debugging
         for mode in ("weather", "bus", "excuse", "message"):
             snap = getattr(st, mode, None)
             if snap is None:
@@ -35,6 +34,9 @@ def create_app(store: StateStore, ctl: Control, preview_png_provider=None) -> Fl
                 "cycle_time_s": plan.cycle_time_s,
                 "total_time_s": plan.total_time_s,
             }
+
+        d["bread_alert"] = bool(getattr(st, "bread_alert", False))
+        d["snake_alert"] = bool(getattr(st, "snake_alert", False))
 
         return jsonify(d)
 
@@ -62,19 +64,55 @@ def create_app(store: StateStore, ctl: Control, preview_png_provider=None) -> Fl
         mode = data.get("mode", "")
         if mode not in ("weather", "bus", "excuse", "message", ""):
             return jsonify({"ok": False, "error": "Invalid mode"}), 400
-        store.update(forced_mode=mode, mode_changed_at=time.time())
+        store.update(forced_mode=mode)
         return jsonify({"ok": True, "mode": mode})
+
+    @app.post("/api/bread_alert")
+    def api_bread_alert():
+        data = request.get_json(silent=True) or {}
+        on = data.get("on")
+        if not isinstance(on, bool):
+            return jsonify({"ok": False, "error": "Expected JSON: {on: true|false}"}), 400
+
+        store.update(bread_alert=on, bread_alert_changed_at=time.time())
+        return jsonify({"ok": True, "bread_alert": on})
     
+    @app.post("/api/snake_alert")
+    def api_snake_alert():
+        data = request.get_json(silent=True) or {}
+        on = data.get("on")
+        if not isinstance(on, bool):
+            return jsonify({"ok": False, "error": "Expected JSON: {on: true|false}"}), 400
+
+        store.update(snake_alert=on, snake_alert_changed_at=time.time())
+        return jsonify({"ok": True, "snake_alert": on})
+
     @app.post("/api/refresh")
     def api_refresh():
         ctl.request_refresh()
         return jsonify({"ok": True, "queued": True})
-    
+
     @app.get("/preview.png")
     def preview_png():
         if not preview_png_provider:
             return Response("preview not available", status=404)
         data = preview_png_provider() or b""
         return send_file(io.BytesIO(data), mimetype="image/png")
+
+    @app.post("/api/engine/demo")
+    def api_engine_demo():
+        data = request.get_json(silent=True) or {}
+        on = data.get("on")
+        if not isinstance(on, bool):
+            return jsonify({"ok": False, "error": "Expected JSON: {on:true|false}"}), 400
+        store.update(engine_demo=on)
+        return jsonify({"ok": True, "engine_demo": on})
+
+    @app.post("/api/engine/demo/next")
+    def api_engine_demo_next():
+        st = store.get()
+        cur = int(getattr(st, "engine_demo_idx", 0))
+        store.update(engine_demo_idx=cur + 1)
+        return jsonify({"ok": True, "engine_demo_idx": cur + 1})
 
     return app

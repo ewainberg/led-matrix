@@ -31,6 +31,11 @@
     <button id="resume">Resume</button>
 
     <button id="refreshNow">Refresh Now</button>
+    <button id="breadAlertOn">Bread On</button>
+    <button id="breadAlertOff">Bread Off</button>
+
+    <button id="snakeAlertOn">Snake On</button>
+    <button id="snakeAlertOff">Snake Off</button>
 
     <span class="status">Mode:</span>
     <select id="modeSel">
@@ -73,6 +78,20 @@ async function postJson(url, body) {
 }
 
 async function wireControls() {
+  document.getElementById('breadAlertOn').onclick = async () => {
+    try { await postJson('/api/bread_alert', {on:true}); await refresh(); } catch(e){ alert(e.message); }
+  };
+  document.getElementById('breadAlertOff').onclick = async () => {
+    try { await postJson('/api/bread_alert', {on:false}); await refresh(); } catch(e){ alert(e.message); }
+  };
+  
+  document.getElementById('snakeAlertOn').onclick = async () => {
+    try { await postJson('/api/snake_alert', {on:true}); await refresh(); } catch(e){ alert(e.message); }
+  };
+  document.getElementById('snakeAlertOff').onclick = async () => {
+    try { await postJson('/api/snake_alert', {on:false}); await refresh(); } catch(e){ alert(e.message); }
+  };
+
   document.getElementById('pwrOn').onclick = async () => {
     try { await postJson('/api/power', {on:true}); await refresh(); } catch(e){ alert(e.message); }
   };
@@ -111,7 +130,7 @@ async function refresh() {
     ' | clock=' + s.time_text +
     ' | updated=' + new Date(s._server_time_unix*1000).toLocaleTimeString()
     + (s.last_error ? ' | error=' + s.last_error : '')
-    + (s.forced_mode ? ' | forced_mode=' + s.forced_mode : '');
+    + (s.forced_mode ? ' | forced_mode=' + s.forced_mode : '')
 
   const modes = [
     ['weather', s.weather],

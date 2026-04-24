@@ -5,7 +5,7 @@ from dataclasses import dataclass
 
 from config import device
 
-CHAR_PX = 6  # placeholder for 5x7+spacing; can replace with real font metrics later
+CHAR_PX = 6
 
 
 @dataclass(frozen=True)
