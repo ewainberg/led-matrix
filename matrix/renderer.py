@@ -86,7 +86,7 @@ class Renderer:
         mode = st.current_mode
         time_text = st.time_text or ""
         snap = getattr(st, mode, None)
-        display_text = (snap.display_text or "") if snap else ""
+        display_text = (snap.display_text or "") if (snap and hasattr(snap, "display_text")) else ""
 
         engine_demo = bool(getattr(st, "engine_demo", False))
         engine_demo_idx = int(getattr(st, "engine_demo_idx", 0) or 0)

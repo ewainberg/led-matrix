@@ -78,9 +78,11 @@ def main() -> None:
     last_fetch_at = 0.0
 
     def get_display_text_for_mode(mode: str) -> str:
+        if mode == "time_reminder":
+            return getattr(device, "TIME_REMINDER_TEXT", "TURN IN YOUR TIME")
         st = store.get()
         snap = getattr(st, mode, None)
-        if snap is None:
+        if snap is None or not hasattr(snap, "display_text"):
             return ""
         return snap.display_text or ""
 
