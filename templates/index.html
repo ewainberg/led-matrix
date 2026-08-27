@@ -18,6 +18,17 @@
     button:disabled { opacity: 0.55; cursor: not-allowed; }
     select { padding: 8px 10px; border: 1px solid #ccc; background: #fff; border-radius: 8px; }
     .status { margin-left: 6px; }
+
+    /* Tetris */
+    #tetris-section { margin-top: 20px; border-top: 2px solid #333; padding-top: 16px; }
+    #tetris-section h3 { margin: 0 0 10px; }
+    .tetris-controls { display: flex; gap: 24px; flex-wrap: wrap; margin: 12px 0; }
+    .player-pad { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+    .player-pad .label { font-weight: 600; font-size: 13px; margin-bottom: 2px; }
+    .player-pad .row-btns { display: flex; gap: 6px; }
+    .player-pad button { min-width: 52px; }
+    #tetris-scores { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; margin-top: 8px; }
+    .t-over { color: #c00; font-weight: 700; }
   </style>
 </head>
 <body>
@@ -56,6 +67,53 @@
   </div>
   <div id="grid"></div>
 
+  <!-- ================================================================ -->
+  <!-- Tetris                                                            -->
+  <!-- ================================================================ -->
+  <div id="tetris-section">
+    <h3>Two-Player Tetris</h3>
+
+    <div class="controls mono">
+      <button id="tetrisStart">Start Game</button>
+      <button id="tetrisStop">Stop Game</button>
+    </div>
+
+    <div class="tetris-controls">
+      <!-- Player 1 -->
+      <div class="player-pad">
+        <div class="label" style="color:#00dcff;">Player 1 (left)</div>
+        <div class="row-btns">
+          <button id="p1up">&#8593; Up</button>
+          <button id="p1down">&#8595; Down</button>
+        </div>
+        <div class="row-btns">
+          <button id="p1rcw">&#8635; Rotate CW</button>
+          <button id="p1rccw">&#8634; Rotate CCW</button>
+        </div>
+      </div>
+
+      <!-- Player 2 -->
+      <div class="player-pad">
+        <div class="label" style="color:#ff8c00;">Player 2 (right)</div>
+        <div class="row-btns">
+          <button id="p2up">&#8593; Up</button>
+          <button id="p2down">&#8595; Down</button>
+        </div>
+        <div class="row-btns">
+          <button id="p2rcw">&#8635; Rotate CW</button>
+          <button id="p2rccw">&#8634; Rotate CCW</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="tetris-scores">No active game.</div>
+
+    <div class="controls mono" style="margin-top:10px; gap:12px;">
+      <a href="/tetris/p1" target="_blank" style="color:#00dcff; text-decoration:none; border:1px solid #00dcff; padding:4px 10px; border-radius:4px;">Open P1 Controller ↗</a>
+      <a href="/tetris/p2" target="_blank" style="color:#ff8c00; text-decoration:none; border:1px solid #ff8c00; padding:4px 10px; border-radius:4px;">Open P2 Controller ↗</a>
+    </div>
+  </div>
+
 <script>
 function esc(s) {
   return (s ?? '').toString()
@@ -77,6 +135,12 @@ async function postJson(url, body) {
   return j;
 }
 
+async function tetrisAction(player, action) {
+  try {
+    await postJson('/api/tetris/action', {player, action});
+  } catch(e) { console.warn('tetris action failed:', e.message); }
+}
+
 async function wireControls() {
   document.getElementById('breadAlertOn').onclick = async () => {
     try { await postJson('/api/bread_alert', {on:true}); await refresh(); } catch(e){ alert(e.message); }
@@ -84,7 +148,7 @@ async function wireControls() {
   document.getElementById('breadAlertOff').onclick = async () => {
     try { await postJson('/api/bread_alert', {on:false}); await refresh(); } catch(e){ alert(e.message); }
   };
-  
+
   document.getElementById('snakeAlertOn').onclick = async () => {
     try { await postJson('/api/snake_alert', {on:true}); await refresh(); } catch(e){ alert(e.message); }
   };
@@ -117,6 +181,24 @@ async function wireControls() {
   document.getElementById('clearMode').onclick = async () => {
     try { await postJson('/api/mode', {mode:""}); await refresh(); } catch(e){ alert(e.message); }
   };
+
+  // Tetris game controls
+  document.getElementById('tetrisStart').onclick = async () => {
+    try { await postJson('/api/tetris/start'); await refreshTetris(); } catch(e){ alert(e.message); }
+  };
+  document.getElementById('tetrisStop').onclick = async () => {
+    try { await postJson('/api/tetris/stop'); await refreshTetris(); } catch(e){ alert(e.message); }
+  };
+
+  document.getElementById('p1up').onclick    = () => tetrisAction(1, 'up');
+  document.getElementById('p1down').onclick  = () => tetrisAction(1, 'down');
+  document.getElementById('p1rcw').onclick   = () => tetrisAction(1, 'rotate_cw');
+  document.getElementById('p1rccw').onclick  = () => tetrisAction(1, 'rotate_ccw');
+
+  document.getElementById('p2up').onclick    = () => tetrisAction(2, 'up');
+  document.getElementById('p2down').onclick  = () => tetrisAction(2, 'down');
+  document.getElementById('p2rcw').onclick   = () => tetrisAction(2, 'rotate_cw');
+  document.getElementById('p2rccw').onclick  = () => tetrisAction(2, 'rotate_ccw');
 }
 
 async function refresh() {
@@ -163,9 +245,29 @@ async function refresh() {
   }
 }
 
+async function refreshTetris() {
+  try {
+    const r = await fetch('/api/tetris/state');
+    const s = await r.json();
+    const el = document.getElementById('tetris-scores');
+    if (!s.active) {
+      el.textContent = 'No active game.';
+      return;
+    }
+    const p1over = s.p1.game_over ? ' <span class="t-over">GAME OVER</span>' : '';
+    const p2over = s.p2.game_over ? ' <span class="t-over">GAME OVER</span>' : '';
+    el.innerHTML =
+      `P1: score=${s.p1.score} lines=${s.p1.lines}${p1over} &nbsp;|&nbsp; ` +
+      `P2: score=${s.p2.score} lines=${s.p2.lines}${p2over} &nbsp;|&nbsp; ` +
+      `tick=${s.tick_interval.toFixed(2)}s`;
+  } catch(e) {}
+}
+
 wireControls();
 refresh();
+refreshTetris();
 setInterval(refresh, 2000);
+setInterval(refreshTetris, 1000);
 </script>
 </body>
 </html>

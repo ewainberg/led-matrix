@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>Tetris – Player 1</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #0a0a0a;
+      color: #00dcff;
+      font-family: monospace;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: space-between;
+      min-height: 100dvh;
+      padding: 1rem;
+      gap: 0.75rem;
+      touch-action: manipulation;
+    }
+    h1 { font-size: 1.4rem; letter-spacing: 0.1em; text-transform: uppercase; }
+    #score-area {
+      font-size: 1.1rem;
+      text-align: center;
+      line-height: 1.8;
+    }
+    #status { font-size: 0.9rem; color: #888; min-height: 1.2em; }
+    .controls {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      grid-template-rows: repeat(3, 1fr);
+      gap: 0.5rem;
+      width: 100%;
+      max-width: 320px;
+      flex: 1;
+      max-height: 380px;
+    }
+    .btn {
+      background: #001820;
+      border: 2px solid #00dcff;
+      color: #00dcff;
+      font-size: 2rem;
+      border-radius: 0.5rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+      transition: background 0.1s;
+    }
+    .btn:active, .btn.pressed { background: #004455; }
+    .btn-up    { grid-column: 2; grid-row: 1; }
+    .btn-ccw   { grid-column: 1; grid-row: 2; }
+    .btn-drop  { grid-column: 2; grid-row: 2; font-size: 1.4rem; }
+    .btn-cw    { grid-column: 3; grid-row: 2; }
+    .btn-down  { grid-column: 2; grid-row: 3; }
+    #game-over-banner {
+      display: none;
+      font-size: 1.6rem;
+      color: #ff4444;
+      font-weight: bold;
+      letter-spacing: 0.15em;
+    }
+  </style>
+</head>
+<body>
+  <h1>Player 1</h1>
+  <div id="score-area">
+    Score: <span id="score">–</span><br>
+    Lines: <span id="lines">–</span>
+  </div>
+  <div id="game-over-banner">GAME OVER</div>
+  <div class="controls">
+    <button class="btn btn-up"   id="btn-up"   title="Move up (↑)">▲</button>
+    <button class="btn btn-ccw"  id="btn-ccw"  title="Rotate CCW (←)">↺</button>
+    <button class="btn btn-drop" id="btn-drop" title="Drop (Space)">DROP</button>
+    <button class="btn btn-cw"   id="btn-cw"   title="Rotate CW (→)">↻</button>
+    <button class="btn btn-down" id="btn-down" title="Move down (↓)">▼</button>
+  </div>
+  <div id="status"></div>
+
+  <script>
+    const PLAYER = 1;
+
+    async function sendAction(action) {
+      try {
+        await fetch("/api/tetris/action", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ player: PLAYER, action }),
+        });
+      } catch (e) { /* ignore */ }
+    }
+
+    // Button bindings
+    const bindings = [
+      ["btn-up",   "up"],
+      ["btn-down", "down"],
+      ["btn-ccw",  "rotate_ccw"],
+      ["btn-cw",   "rotate_cw"],
+      ["btn-drop", "drop"],
+    ];
+    for (const [id, act] of bindings) {
+      const el = document.getElementById(id);
+      el.addEventListener("pointerdown", (e) => { e.preventDefault(); sendAction(act); el.classList.add("pressed"); });
+      el.addEventListener("pointerup",   () => el.classList.remove("pressed"));
+      el.addEventListener("pointerleave",() => el.classList.remove("pressed"));
+    }
+
+    // Keyboard bindings
+    const keyMap = {
+      ArrowUp:    "up",
+      ArrowDown:  "down",
+      ArrowLeft:  "rotate_ccw",
+      ArrowRight: "rotate_cw",
+      " ":        "drop",
+    };
+    document.addEventListener("keydown", (e) => {
+      if (e.key in keyMap) {
+        e.preventDefault();
+        sendAction(keyMap[e.key]);
+      }
+    });
+
+    // Live score polling
+    async function pollState() {
+      try {
+        const r = await fetch("/api/tetris/state");
+        const d = await r.json();
+        if (d.active && d.p1) {
+          document.getElementById("score").textContent = d.p1.score;
+          document.getElementById("lines").textContent = d.p1.lines;
+          const banner = document.getElementById("game-over-banner");
+          banner.style.display = d.p1.game_over ? "block" : "none";
+          document.getElementById("status").textContent = "";
+        } else {
+          document.getElementById("status").textContent = "No active game";
+        }
+      } catch(e) {
+        document.getElementById("status").textContent = "Connection error";
+      }
+    }
+    pollState();
+    setInterval(pollState, 1000);
+  </script>
+</body>
+</html>

@@ -97,6 +97,16 @@ def main() -> None:
             try:
                 now = time.time()
 
+                # ----------------------------------------------------------
+                # Tetris mode — skip all normal display logic while active
+                # ----------------------------------------------------------
+                tetris_game = getattr(store.get(), "tetris_game", None)
+                if tetris_game is not None:
+                    tetris_game.tick()
+                    time.sleep(0.25)
+                    continue
+                # ----------------------------------------------------------
+
                 store.update(time_text=clock_text())
 
                 st = store.get()

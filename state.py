@@ -2,8 +2,11 @@ from __future__ import annotations
 
 import time
 import threading
-from dataclasses import dataclass, asdict, replace
-from typing import Any, Optional
+from dataclasses import dataclass, asdict, replace, field
+from typing import Any, Optional, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from matrix.tetris import TetrisGame
 
 
 @dataclass
@@ -35,6 +38,8 @@ class State:
     bread_alert_changed_at: float
     snake_alert: bool
     snake_alert_changed_at: float
+    # Tetris — live game object; not serialised to JSON
+    tetris_game: Optional[Any] = None  # Optional[TetrisGame]
 
 
 def snap_ok(display_text: str, raw: Any) -> ModeSnapshot:
@@ -81,6 +86,7 @@ class StateStore:
             bread_alert_changed_at=0.0,
             snake_alert=False,
             snake_alert_changed_at=0.0,
+            tetris_game=None,
         )
 
     def get(self) -> State:
@@ -93,4 +99,8 @@ class StateStore:
                 setattr(self._state, k, v)
 
     def as_dict(self) -> dict:
-        return asdict(self.get())
+        # Replace tetris_game with None before serialising — it's a live
+        # object with a threading.Lock that can't be deep-copied or JSON'd.
+        st = self.get()
+        safe = replace(st, tetris_game=None)
+        return asdict(safe)

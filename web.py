@@ -7,6 +7,7 @@ from flask import Flask, jsonify, Response, request, send_file, render_template
 from state import StateStore
 from layout import compute_scroll_plan
 from control import Control
+from matrix.tetris import TetrisGame
 
 
 def create_app(store: StateStore, ctl: Control, preview_png_provider=None) -> Flask:
@@ -114,5 +115,65 @@ def create_app(store: StateStore, ctl: Control, preview_png_provider=None) -> Fl
         cur = int(getattr(st, "engine_demo_idx", 0))
         store.update(engine_demo_idx=cur + 1)
         return jsonify({"ok": True, "engine_demo_idx": cur + 1})
+
+    # ------------------------------------------------------------------
+    # Tetris endpoints
+    # ------------------------------------------------------------------
+
+    @app.post("/api/tetris/start")
+    def api_tetris_start():
+        game = TetrisGame()
+        store.update(tetris_game=game)
+        return jsonify({"ok": True, "status": "started"})
+
+    @app.post("/api/tetris/stop")
+    def api_tetris_stop():
+        store.update(tetris_game=None)
+        return jsonify({"ok": True, "status": "stopped"})
+
+    @app.post("/api/tetris/action")
+    def api_tetris_action():
+        data = request.get_json(silent=True) or {}
+        player = data.get("player")
+        action = data.get("action", "")
+        if player not in (1, 2):
+            return jsonify({"ok": False, "error": "player must be 1 or 2"}), 400
+        valid_actions = ("up", "down", "rotate_cw", "rotate_ccw", "drop")
+        if action not in valid_actions:
+            return jsonify({"ok": False, "error": f"action must be one of {valid_actions}"}), 400
+        game = getattr(store.get(), "tetris_game", None)
+        if game is None:
+            return jsonify({"ok": False, "error": "no active tetris game"}), 409
+        game.action(player, action)
+        return jsonify({"ok": True, "player": player, "action": action})
+
+    @app.get("/api/tetris/state")
+    def api_tetris_state():
+        game = getattr(store.get(), "tetris_game", None)
+        if game is None:
+            return jsonify({"active": False})
+        snap = game.snapshot()
+        return jsonify({
+            "active": True,
+            "p1": {
+                "score": snap["board1_score"],
+                "lines": snap["board1_lines"],
+                "game_over": snap["board1_over"],
+            },
+            "p2": {
+                "score": snap["board2_score"],
+                "lines": snap["board2_lines"],
+                "game_over": snap["board2_over"],
+            },
+            "tick_interval": snap["tick_interval"],
+        })
+
+    @app.get("/tetris/p1")
+    def tetris_p1():
+        return render_template("tetris_p1.html")
+
+    @app.get("/tetris/p2")
+    def tetris_p2():
+        return render_template("tetris_p2.html")
 
     return app
