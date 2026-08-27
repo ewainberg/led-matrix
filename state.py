@@ -40,6 +40,8 @@ class State:
     snake_alert_changed_at: float
     # Tetris — live game object; not serialised to JSON
     tetris_game: Optional[Any] = None  # Optional[TetrisGame]
+    time_reminder: bool = False
+    time_reminder_changed_at: float = 0.0
 
 
 def snap_ok(display_text: str, raw: Any) -> ModeSnapshot:
@@ -87,6 +89,8 @@ class StateStore:
             snake_alert=False,
             snake_alert_changed_at=0.0,
             tetris_game=None,
+            time_reminder=False,
+            time_reminder_changed_at=0.0,
         )
 
     def get(self) -> State:

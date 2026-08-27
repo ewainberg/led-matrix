@@ -43,6 +43,15 @@ BASE_MODE_DURATIONS_S = {
 
 EMPTY_MESSAGE_DURATION_S = 0
 
+# -------- Time Reminder (Thursday timesheet reminder) --------
+TIME_REMINDER_ENABLED = True
+TIME_REMINDER_DAY = 3  # 3 = Thursday (0=Monday, 6=Sunday)
+TIME_REMINDER_INTERVAL_M = 5  # Every 5 minutes (:00, :05, :10, etc.)
+TIME_REMINDER_DURATION_S = 12  # Flashes for 12 seconds
+TIME_REMINDER_TEXT = "TURN IN YOUR TIME"
+TIME_REMINDER_FLASH_PERIOD_S = 1.0  # 1 second cycle (gentle, not too fast)
+TIME_REMINDER_FLASH_DUTY_CYCLE = 0.65  # 65% on, 35% off
+
 # -------- Matrix output (WS2812B via PWM) --------
 LED_GPIO = 18
 LED_FREQ_HZ = 800000

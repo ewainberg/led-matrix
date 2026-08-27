@@ -48,6 +48,9 @@
     <button id="snakeAlertOn">Snake On</button>
     <button id="snakeAlertOff">Snake Off</button>
 
+    <button id="timeReminderOn">Time Alert On</button>
+    <button id="timeReminderOff">Time Alert Off</button>
+
     <span class="status">Mode:</span>
     <select id="modeSel">
       <option value="">(auto)</option>
@@ -55,6 +58,7 @@
       <option value="bus">bus</option>
       <option value="excuse">excuse</option>
       <option value="message">message</option>
+      <option value="time_reminder">time_reminder</option>
     </select>
     <button id="applyMode">Apply</button>
     <button id="clearMode">Clear</button>
@@ -154,6 +158,13 @@ async function wireControls() {
   };
   document.getElementById('snakeAlertOff').onclick = async () => {
     try { await postJson('/api/snake_alert', {on:false}); await refresh(); } catch(e){ alert(e.message); }
+  };
+
+  document.getElementById('timeReminderOn').onclick = async () => {
+    try { await postJson('/api/time_reminder', {on:true}); await refresh(); } catch(e){ alert(e.message); }
+  };
+  document.getElementById('timeReminderOff').onclick = async () => {
+    try { await postJson('/api/time_reminder', {on:false}); await refresh(); } catch(e){ alert(e.message); }
   };
 
   document.getElementById('pwrOn').onclick = async () => {

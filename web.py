@@ -38,6 +38,7 @@ def create_app(store: StateStore, ctl: Control, preview_png_provider=None) -> Fl
 
         d["bread_alert"] = bool(getattr(st, "bread_alert", False))
         d["snake_alert"] = bool(getattr(st, "snake_alert", False))
+        d["time_reminder"] = bool(getattr(st, "time_reminder", False))
 
         return jsonify(d)
 
@@ -63,7 +64,7 @@ def create_app(store: StateStore, ctl: Control, preview_png_provider=None) -> Fl
     def api_mode():
         data = request.get_json(silent=True) or {}
         mode = data.get("mode", "")
-        if mode not in ("weather", "bus", "excuse", "message", ""):
+        if mode not in ("weather", "bus", "excuse", "message", "time_reminder", ""):
             return jsonify({"ok": False, "error": "Invalid mode"}), 400
         store.update(forced_mode=mode)
         return jsonify({"ok": True, "mode": mode})
@@ -87,6 +88,16 @@ def create_app(store: StateStore, ctl: Control, preview_png_provider=None) -> Fl
 
         store.update(snake_alert=on, snake_alert_changed_at=time.time())
         return jsonify({"ok": True, "snake_alert": on})
+
+    @app.post("/api/time_reminder")
+    def api_time_reminder():
+        data = request.get_json(silent=True) or {}
+        on = data.get("on")
+        if not isinstance(on, bool):
+            return jsonify({"ok": False, "error": "Expected JSON: {on: true|false}"}), 400
+
+        store.update(time_reminder=on, time_reminder_changed_at=time.time())
+        return jsonify({"ok": True, "time_reminder": on})
 
     @app.post("/api/refresh")
     def api_refresh():

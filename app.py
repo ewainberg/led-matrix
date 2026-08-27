@@ -8,14 +8,17 @@ import threading
 import config.secrets as secrets
 import config.device as device
 
-from utils import set_tz, clock_text, is_quiet_hours
+from utils import set_tz, clock_text, is_quiet_hours, is_time_reminder_active
 from state import StateStore
 from fetchers import Fetcher
 from layout import compute_mode_duration_s
 from web import create_app
 from control import Control
 from matrix.renderer import Renderer
-from matrix.scene_builder import make_bus_takeover_presentation
+from matrix.scene_builder import (
+    make_bus_takeover_presentation,
+    make_time_reminder_presentation,
+)
 
 
 MODE_ORDER = ["weather", "bus", "excuse", "message"]
@@ -136,9 +139,25 @@ def main() -> None:
                 bus_text = get_display_text_for_mode("bus")
                 bus_eta_min = parse_bus_eta_minutes(bus_text)
 
+                time_reminder_active = False
+                if getattr(device, "TIME_REMINDER_ENABLED", True) and not quiet_active:
+                    day_of_week = getattr(device, "TIME_REMINDER_DAY", 3)
+                    interval_m = getattr(device, "TIME_REMINDER_INTERVAL_M", 5)
+                    duration_s = getattr(device, "TIME_REMINDER_DURATION_S", 12)
+                    time_reminder_active = is_time_reminder_active(
+                        day_of_week=day_of_week,
+                        interval_m=interval_m,
+                        duration_s=duration_s,
+                    )
+
                 if bus_eta_min is not None and bus_eta_min <= BUS_INTERRUPT_THRESHOLD_MIN:
                     store.update(
                         override_presentation=make_bus_takeover_presentation(bus_text)
+                    )
+                elif time_reminder_active or getattr(st, "time_reminder", False):
+                    reminder_text = getattr(device, "TIME_REMINDER_TEXT", "TURN IN YOUR TIME")
+                    store.update(
+                        override_presentation=make_time_reminder_presentation(reminder_text)
                     )
                 else:
                     store.update(override_presentation=None)

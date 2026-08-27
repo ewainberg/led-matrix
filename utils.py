@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import os
 import time
 from datetime import datetime
@@ -45,3 +47,17 @@ def is_quiet_hours(off_start: str, on_start: str, now: datetime | None = None) -
         return off <= t < on
 
     return (t >= off) or (t < on)
+
+
+def is_time_reminder_active(
+    day_of_week: int = 3,
+    interval_m: int = 5,
+    duration_s: int = 12,
+    now: datetime | None = None,
+) -> bool:
+    now = now or datetime.now()
+    if now.weekday() != day_of_week:
+        return False
+    if interval_m <= 0 or duration_s <= 0:
+        return False
+    return (now.minute % interval_m == 0) and (now.second < duration_s)

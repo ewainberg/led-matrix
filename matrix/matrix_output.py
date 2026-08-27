@@ -2,7 +2,24 @@ from __future__ import annotations
 
 from typing import Tuple
 
-from rpi_ws281x import PixelStrip, Color
+try:
+    from rpi_ws281x import PixelStrip, Color
+except ImportError:
+    class PixelStrip:  # type: ignore[no-redef]
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def begin(self):
+            pass
+
+        def setPixelColor(self, *args, **kwargs):
+            pass
+
+        def show(self):
+            pass
+
+    def Color(r: int, g: int, b: int):  # type: ignore[no-redef]
+        return (r, g, b)
 
 from config import device
 from matrix.matrix_map import MatrixMap

@@ -15,6 +15,7 @@ from matrix.scene_builder import (
     Presentation,
     make_bread_alert_presentation,
     make_snake_alert_presentation,
+    make_time_reminder_presentation,
 )
 from matrix.tetris_scene import render_tetris
 
@@ -98,6 +99,9 @@ class Renderer:
                 presentation = make_snake_alert_presentation()
             elif getattr(st, "bread_alert", False):
                 presentation = make_bread_alert_presentation()
+            elif getattr(st, "time_reminder", False) or mode == "time_reminder":
+                reminder_text = getattr(device, "TIME_REMINDER_TEXT", "TURN IN YOUR TIME")
+                presentation = make_time_reminder_presentation(reminder_text)
 
         scroll_mode = presentation.mode if presentation else mode
         scroll_text = presentation.display_text if presentation else display_text

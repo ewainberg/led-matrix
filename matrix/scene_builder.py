@@ -18,11 +18,12 @@ from matrix.primitives.sprite import SpritePrimitive
 from matrix.primitives.spritesheet import SpriteSheetPrimitive
 from matrix.primitives.sprite_scroll import VerticalSpriteScroller
 from matrix.effects.dash import Dash
+from matrix.effects.blink import Blink
 from matrix.weather_icons import get_weather_icon_path
 
-PresentationKind = Literal["normal", "emphasis", "takeover", "alert", "bread_alert", "snake_alert"]
+PresentationKind = Literal["normal", "emphasis", "takeover", "alert", "bread_alert", "snake_alert", "time_reminder"]
 
-@dataclass(slots=True)
+@dataclass
 class Presentation:
     kind: PresentationKind = "normal"
     mode: str = "message"
@@ -62,7 +63,10 @@ MODE_COLORS = {
     "excuse": (255, 100, 255),
     "message": (255, 255, 0),
     "bread": (255, 0, 0),
+    "time_reminder": (255, 180, 0),
 }
+
+TIME_REMINDER_COLOR = (255, 180, 0)
 
 BUS_COLOR = MODE_COLORS["bus"]
 BUS_TAKEOVER_SPRITE_PATH = str(ASSETS_DIR / "bus.png")
@@ -215,6 +219,24 @@ def make_snake_alert_presentation() -> Presentation:
         center_text=True,
         color=SNAKE_COLOR,
         frame_color=SNAKE_COLOR,
+        arrows=False,
+    )
+
+
+def make_time_reminder_presentation(display_text: str = "TURN IN YOUR TIME") -> Presentation:
+    text = (display_text or "TURN IN YOUR TIME").strip()
+    return Presentation(
+        kind="time_reminder",
+        mode="time_reminder",
+        display_text=text,
+        time_text="",
+        show_clock=False,
+        frame=True,
+        full_width=True,
+        use_small_font=True,
+        center_text=True,
+        color=TIME_REMINDER_COLOR,
+        frame_color=TIME_REMINDER_COLOR,
         arrows=False,
     )
 
@@ -376,6 +398,48 @@ def build_scene(
                     x_align="center",
                 ),
                 effects=[],
+            ),
+        ]
+
+    if pres.kind == "time_reminder":
+        use_font = small_font if small_font is not None else font
+        color = pres.color or TIME_REMINDER_COLOR
+        frame_color = pres.frame_color or color
+
+        flash_period = getattr(device, "TIME_REMINDER_FLASH_PERIOD_S", 1.0)
+        flash_duty = getattr(device, "TIME_REMINDER_FLASH_DUTY_CYCLE", 0.65)
+        blink_effect = Blink(period_s=flash_period, duty_cycle=flash_duty)
+
+        vp_outer = Viewport(0, 0, screen_w, screen_h)
+        frame_pad = 1
+        vp_inner = Viewport(
+            vp_outer.x + frame_pad,
+            vp_outer.y + frame_pad,
+            max(1, vp_outer.w - 2 * frame_pad),
+            max(1, vp_outer.h - 2 * frame_pad),
+        )
+
+        return [
+            DrawUnit(
+                vp=vp_outer,
+                prim=FramePrimitive(color=frame_color, thickness=1),
+                effects=[Dash(dash_len=3, gap_len=2, speed_px_s=15.0), blink_effect],
+            ),
+            DrawUnit(
+                vp=vp_inner,
+                prim=TextPrimitive(
+                    text=pres.display_text,
+                    font=use_font,
+                    color=color,
+                    mode="auto",
+                    y_align="center",
+                    x_align="center",
+                    start_pause_s=1.0,
+                    gap_px=12,
+                    speed_px_s=device.SCROLL_SPEED_PX_S,
+                    scroll_started_at=scroll_started_at or 0.0,
+                ),
+                effects=[blink_effect],
             ),
         ]
 
